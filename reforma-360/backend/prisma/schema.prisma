@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationType {
+  ACCOUNTING_FIRM
+  COMPANY
+  TAX_DEPARTMENT
+}
+
+enum TaxRegime {
+  SIMPLES_NACIONAL
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+  NAO_INFORMADO
+}
+
+model Organization {
+  id             String           @id @default(cuid())
+  name           String
+  type           OrganizationType
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  companies      Company[]
+  members        Membership[]
+  checklistItems ChecklistItem[]
+  fiscalDocuments FiscalDocument[]
+  taxSimulations  TaxSimulation[]
+
+  @@index([type])
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  memberships  Membership[]
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String       @default("MEMBER")
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Company {
+  id             String          @id @default(cuid())
+  organizationId String
+  name           String
+  taxId          String
+  taxRegime      TaxRegime       @default(NAO_INFORMADO)
+  state          String?
+  city           String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checklistItems ChecklistItem[]
+
+  @@unique([organizationId, taxId])
+  @@index([organizationId, name])
+}
+
+enum ChecklistStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ChecklistPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model ChecklistItem {
+  id             String            @id @default(cuid())
+  organizationId String
+  companyId      String?
+  title          String
+  description    String?
+  category       String            @default("GERAL")
+  status         ChecklistStatus   @default(PENDING)
+  priority       ChecklistPriority @default(MEDIUM)
+  dueDate        DateTime?
+  responsible    String?
+  evidenceUrl    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, dueDate])
+  @@index([companyId])
+}
+
+model FiscalDocument {
+  id             String   @id @default(cuid())
+  organizationId String
+  fileName       String
+  accessKey      String?
+  documentNumber String?
+  series         String?
+  documentType   String   @default("NFE")
+  issuerName     String?
+  issuerTaxId    String?
+  recipientName  String?
+  recipientTaxId String?
+  issuedAt       DateTime?
+  totalAmount    Decimal? @db.Decimal(18, 2)
+  status         String   @default("PROCESSED")
+  warnings       Json?
+  items          Json?
+  rawXml         String
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, accessKey])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+
+model TaxSimulation {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  inputs         Json
+  results        Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
