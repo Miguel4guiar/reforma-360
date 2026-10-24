@@ -18,8 +18,14 @@ export class TaxSimulationsController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Calcula e salva uma simulação preliminar CBS/IBS' })
+  @ApiOperation({ summary: 'Calcula e salva uma simulação preliminar CBS/IBS manual' })
   create(@Req() req: Request & { user: { id: string } }, @Body() body: { organizationId: string; name: string; inputs: Record<string, unknown> }) {
     return this.service.create(req.user.id, body);
+  }
+
+  @Post('document')
+  @ApiOperation({ summary: 'Calcula e salva uma simulação extraindo valores de uma NF-e' })
+  createFromDocument(@Req() req: Request & { user: { id: string } }, @Body() body: { organizationId: string; documentId: string; name: string; inputs: Record<string, unknown> }) {
+    return this.service.createFromDocument(req.user.id, body);
   }
 }

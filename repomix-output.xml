@@ -1,0 +1,2468 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+reforma-360/
+  backend/
+    prisma/
+      migrations/
+        20261017041909_initial_schema/
+          migration.sql
+        20261019210000_add_checklist/
+          migration.sql
+        20261020190000_add_fiscal_documents/
+          migration.sql
+        20261020210000_add_tax_simulations/
+          migration.sql
+        migration_lock.toml
+      schema.prisma
+    src/
+      auth/
+        dto/
+          login.dto.ts
+          register.dto.ts
+        auth.controller.ts
+        auth.guard.ts
+        auth.module.ts
+        auth.service.ts
+      checklist/
+        dto/
+          create-checklist-item.dto.ts
+          update-checklist-item.dto.ts
+        checklist.controller.ts
+        checklist.module.ts
+        checklist.service.ts
+      companies/
+        dto/
+          create-company.dto.ts
+        companies.controller.ts
+        companies.module.ts
+        companies.service.ts
+      fiscal-documents/
+        fiscal-documents.controller.ts
+        fiscal-documents.module.ts
+        fiscal-documents.service.ts
+      organizations/
+        dto/
+          create-organization.dto.ts
+        organizations.controller.ts
+        organizations.module.ts
+        organizations.service.ts
+      prisma/
+        prisma.module.ts
+        prisma.service.ts
+      tax-simulations/
+        tax-simulations.controller.ts
+        tax-simulations.module.ts
+        tax-simulations.service.ts
+      app.module.ts
+      health.controller.ts
+      main.ts
+    .env.example
+    .gitignore
+    nest-cli.json
+    package.json
+    tsconfig.json
+  frontend/
+    app/
+      checklist/
+        page.tsx
+      simulador/
+        page.tsx
+      xml/
+        page.tsx
+      globals.css
+      layout.tsx
+      page.tsx
+    .env.example
+    .gitignore
+    next-env.d.ts
+    next.config.ts
+    package.json
+    tsconfig.json
+  ETAPA-2-CHECKLIST-LEIA-ANTES.md
+  ETAPA-3-ANALISE-XML.md
+  ETAPA-4-SIMULADOR-CBS-IBS.md
+  README.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="reforma-360/backend/prisma/migrations/20261017041909_initial_schema/migration.sql">
+-- CreateEnum
+CREATE TYPE "OrganizationType" AS ENUM ('ACCOUNTING_FIRM', 'COMPANY', 'TAX_DEPARTMENT');
+
+-- CreateEnum
+CREATE TYPE "TaxRegime" AS ENUM ('SIMPLES_NACIONAL', 'LUCRO_PRESUMIDO', 'LUCRO_REAL', 'NAO_INFORMADO');
+
+-- CreateTable
+CREATE TABLE "Organization" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "type" "OrganizationType" NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Organization_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "User" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "passwordHash" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Membership" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "role" TEXT NOT NULL DEFAULT 'MEMBER',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Membership_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Company" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "taxId" TEXT NOT NULL,
+    "taxRegime" "TaxRegime" NOT NULL DEFAULT 'NAO_INFORMADO',
+    "state" TEXT,
+    "city" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Company_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "Organization_type_idx" ON "Organization"("type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE INDEX "Membership_organizationId_idx" ON "Membership"("organizationId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Membership_userId_organizationId_key" ON "Membership"("userId", "organizationId");
+
+-- CreateIndex
+CREATE INDEX "Company_organizationId_name_idx" ON "Company"("organizationId", "name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Company_organizationId_taxId_key" ON "Company"("organizationId", "taxId");
+
+-- AddForeignKey
+ALTER TABLE "Membership" ADD CONSTRAINT "Membership_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Membership" ADD CONSTRAINT "Membership_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Company" ADD CONSTRAINT "Company_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+</file>
+
+<file path="reforma-360/backend/prisma/migrations/20261019210000_add_checklist/migration.sql">
+-- Reforma 360 - Checklist de adequação tributária
+-- Migration aditiva; não apaga nem recria dados existentes.
+CREATE TYPE "ChecklistStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'COMPLETED');
+CREATE TYPE "ChecklistPriority" AS ENUM ('LOW', 'MEDIUM', 'HIGH');
+
+CREATE TABLE "ChecklistItem" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "companyId" TEXT,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "category" TEXT NOT NULL DEFAULT 'GERAL',
+    "status" "ChecklistStatus" NOT NULL DEFAULT 'PENDING',
+    "priority" "ChecklistPriority" NOT NULL DEFAULT 'MEDIUM',
+    "dueDate" TIMESTAMP(3),
+    "responsible" TEXT,
+    "evidenceUrl" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "ChecklistItem_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX "ChecklistItem_organizationId_status_idx" ON "ChecklistItem"("organizationId", "status");
+CREATE INDEX "ChecklistItem_organizationId_dueDate_idx" ON "ChecklistItem"("organizationId", "dueDate");
+CREATE INDEX "ChecklistItem_companyId_idx" ON "ChecklistItem"("companyId");
+
+ALTER TABLE "ChecklistItem"
+  ADD CONSTRAINT "ChecklistItem_organizationId_fkey"
+  FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "ChecklistItem"
+  ADD CONSTRAINT "ChecklistItem_companyId_fkey"
+  FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+</file>
+
+<file path="reforma-360/backend/prisma/migrations/20261020190000_add_fiscal_documents/migration.sql">
+CREATE TABLE "FiscalDocument" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "fileName" TEXT NOT NULL,
+    "accessKey" TEXT,
+    "documentNumber" TEXT,
+    "series" TEXT,
+    "documentType" TEXT NOT NULL DEFAULT 'NFE',
+    "issuerName" TEXT,
+    "issuerTaxId" TEXT,
+    "recipientName" TEXT,
+    "recipientTaxId" TEXT,
+    "issuedAt" TIMESTAMP(3),
+    "totalAmount" DECIMAL(18,2),
+    "status" TEXT NOT NULL DEFAULT 'PROCESSED',
+    "warnings" JSONB,
+    "items" JSONB,
+    "rawXml" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FiscalDocument_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "FiscalDocument_organizationId_accessKey_key" ON "FiscalDocument"("organizationId", "accessKey");
+CREATE INDEX "FiscalDocument_organizationId_createdAt_idx" ON "FiscalDocument"("organizationId", "createdAt");
+CREATE INDEX "FiscalDocument_organizationId_status_idx" ON "FiscalDocument"("organizationId", "status");
+ALTER TABLE "FiscalDocument" ADD CONSTRAINT "FiscalDocument_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+</file>
+
+<file path="reforma-360/backend/prisma/migrations/20261020210000_add_tax_simulations/migration.sql">
+CREATE TABLE "TaxSimulation" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "inputs" JSONB NOT NULL,
+    "results" JSONB NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "TaxSimulation_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX "TaxSimulation_organizationId_createdAt_idx"
+ON "TaxSimulation"("organizationId", "createdAt");
+
+ALTER TABLE "TaxSimulation"
+ADD CONSTRAINT "TaxSimulation_organizationId_fkey"
+FOREIGN KEY ("organizationId") REFERENCES "Organization"("id")
+ON DELETE CASCADE ON UPDATE CASCADE;
+</file>
+
+<file path="reforma-360/backend/prisma/migrations/migration_lock.toml">
+# Please do not edit this file manually
+# It should be added in your version-control system (e.g., Git)
+provider = "postgresql"
+</file>
+
+<file path="reforma-360/backend/prisma/schema.prisma">
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationType {
+  ACCOUNTING_FIRM
+  COMPANY
+  TAX_DEPARTMENT
+}
+
+enum TaxRegime {
+  SIMPLES_NACIONAL
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+  NAO_INFORMADO
+}
+
+model Organization {
+  id             String           @id @default(cuid())
+  name           String
+  type           OrganizationType
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  companies      Company[]
+  members        Membership[]
+  checklistItems ChecklistItem[]
+  fiscalDocuments FiscalDocument[]
+  taxSimulations  TaxSimulation[]
+
+  @@index([type])
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  memberships  Membership[]
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String       @default("MEMBER")
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Company {
+  id             String          @id @default(cuid())
+  organizationId String
+  name           String
+  taxId          String
+  taxRegime      TaxRegime       @default(NAO_INFORMADO)
+  state          String?
+  city           String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checklistItems ChecklistItem[]
+
+  @@unique([organizationId, taxId])
+  @@index([organizationId, name])
+}
+
+enum ChecklistStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ChecklistPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model ChecklistItem {
+  id             String            @id @default(cuid())
+  organizationId String
+  companyId      String?
+  title          String
+  description    String?
+  category       String            @default("GERAL")
+  status         ChecklistStatus   @default(PENDING)
+  priority       ChecklistPriority @default(MEDIUM)
+  dueDate        DateTime?
+  responsible    String?
+  evidenceUrl    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  company        Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, dueDate])
+  @@index([companyId])
+}
+
+model FiscalDocument {
+  id             String   @id @default(cuid())
+  organizationId String
+  fileName       String
+  accessKey      String?
+  documentNumber String?
+  series         String?
+  documentType   String   @default("NFE")
+  issuerName     String?
+  issuerTaxId    String?
+  recipientName  String?
+  recipientTaxId String?
+  issuedAt       DateTime?
+  totalAmount    Decimal? @db.Decimal(18, 2)
+  status         String   @default("PROCESSED")
+  warnings       Json?
+  items          Json?
+  rawXml         String
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, accessKey])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+
+model TaxSimulation {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  inputs         Json
+  results        Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+</file>
+
+<file path="reforma-360/backend/src/auth/dto/login.dto.ts">
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsString, MinLength } from 'class-validator';
+export class LoginDto {
+  @ApiProperty({ example: 'miguel@empresa.com.br' }) @IsEmail() email!: string;
+  @ApiProperty() @IsString() @MinLength(1) password!: string;
+}
+</file>
+
+<file path="reforma-360/backend/src/auth/dto/register.dto.ts">
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsEnum, IsString, Length, Matches, MinLength } from 'class-validator';
+import { OrganizationTypeDto } from '../../organizations/dto/create-organization.dto';
+
+export class RegisterDto {
+  @ApiProperty({ example: 'Miguel Aguiar' }) @IsString() @Length(2, 120) name!: string;
+  @ApiProperty({ example: 'miguel@empresa.com.br' }) @IsEmail() @Length(5, 180) email!: string;
+  @ApiProperty({ example: 'SenhaForte123!' }) @IsString() @MinLength(10) @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, { message: 'A senha deve conter letras e números.' }) password!: string;
+  @ApiProperty({ example: 'Escritório Exemplo' }) @IsString() @Length(2, 160) organizationName!: string;
+  @ApiProperty({ enum: OrganizationTypeDto }) @IsEnum(OrganizationTypeDto) organizationType!: OrganizationTypeDto;
+}
+</file>
+
+<file path="reforma-360/backend/src/auth/auth.controller.ts">
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { AuthGuard } from './auth.guard';
+import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { PrismaService } from '../prisma/prisma.service';
+
+@ApiTags('auth')
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly auth: AuthService, private readonly prisma: PrismaService) {}
+  @Post('register') @ApiOperation({ summary: 'Cria usuário, organização e sessão' }) register(@Body() dto: RegisterDto) { return this.auth.register(dto); }
+  @Post('login') @ApiOperation({ summary: 'Inicia sessão' }) login(@Body() dto: LoginDto) { return this.auth.login(dto); }
+  @Get('me') @UseGuards(AuthGuard) @ApiBearerAuth() @ApiOperation({ summary: 'Retorna o usuário autenticado e suas organizações' })
+  async me(@Req() req: Request & { user: { id: string; email: string } }) {
+    const user = await this.prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, name: true, email: true } });
+    if (!user) return { user: null, organizations: [] };
+    const memberships = await this.prisma.membership.findMany({ where: { userId: user.id }, include: { organization: true }, orderBy: { createdAt: 'asc' } });
+    return { user, organizations: memberships.map(m => m.organization) };
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/auth/auth.guard.ts">
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(private readonly jwt: JwtService) {}
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
+    const header = request.headers.authorization as string | undefined;
+    if (!header?.startsWith('Bearer ')) throw new UnauthorizedException('Faça login para continuar.');
+    try {
+      const payload = await this.jwt.verifyAsync<{ sub: string; email: string }> (header.slice(7));
+      if (!payload.sub) throw new Error('Token sem usuário');
+      request.user = { id: payload.sub, email: payload.email };
+      return true;
+    } catch { throw new UnauthorizedException('Sessão inválida ou expirada. Entre novamente.'); }
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/auth/auth.module.ts">
+import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { AuthGuard } from './auth.guard';
+@Module({ imports: [JwtModule.register({ secret: process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? (() => { throw new Error('JWT_SECRET é obrigatório em produção'); })() : 'LOCAL_DEV_SECRET_CHANGE_BEFORE_DEPLOYMENT_360'), signOptions: { expiresIn: '8h' } })], controllers: [AuthController], providers: [AuthService, AuthGuard], exports: [AuthGuard, JwtModule] })
+export class AuthModule {}
+</file>
+
+<file path="reforma-360/backend/src/auth/auth.service.ts">
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { OrganizationType, Prisma } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
+import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+  ) {}
+
+  async register(dto: RegisterDto) {
+    const email = dto.email.trim().toLowerCase();
+    const exists = await this.prisma.user.findUnique({ where: { email } });
+
+    if (exists) {
+      throw new ConflictException('Este e-mail já está cadastrado.');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+
+    try {
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            name: dto.name.trim(),
+            email,
+            passwordHash,
+          },
+        });
+
+        // Cada novo cadastro cria sua própria organização e recebe acesso
+        // somente a ela. Organizações antigas sem membros NÃO são atribuídas
+        // automaticamente ao primeiro usuário.
+        const organization = await tx.organization.create({
+          data: {
+            name: dto.organizationName.trim(),
+            type: dto.organizationType as OrganizationType,
+          },
+        });
+
+        await tx.membership.create({
+          data: {
+            userId: created.id,
+            organizationId: organization.id,
+            role: 'OWNER',
+          },
+        });
+
+        return created;
+      });
+
+      return this.createSession(user.id, user.name, user.email);
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Este e-mail já está cadastrado.');
+      }
+
+      throw error;
+    }
+  }
+
+  async login(dto: LoginDto) {
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    const valid = user
+      ? await bcrypt.compare(dto.password, user.passwordHash)
+      : false;
+
+    if (!user || !valid) {
+      throw new UnauthorizedException('E-mail ou senha incorretos.');
+    }
+
+    return this.createSession(user.id, user.name, user.email);
+  }
+
+  private async createSession(userId: string, name: string, email: string) {
+    const accessToken = await this.jwt.signAsync(
+      { sub: userId, email },
+      { expiresIn: '8h' },
+    );
+
+    const organizations = await this.prisma.membership.findMany({
+      where: { userId },
+      include: { organization: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return {
+      accessToken,
+      tokenType: 'Bearer',
+      expiresIn: 28800,
+      user: { id: userId, name, email },
+      organizations: organizations.map((membership) => membership.organization),
+    };
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/checklist/dto/create-checklist-item.dto.ts">
+import { IsDateString, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+
+export enum ChecklistStatusDto {
+  PENDING = 'PENDING',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+}
+export enum ChecklistPriorityDto {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+}
+
+export class CreateChecklistItemDto {
+  @IsString() @MinLength(2) @MaxLength(180)
+  title!: string;
+
+  @IsOptional() @IsString() @MaxLength(2000)
+  description?: string;
+
+  @IsOptional() @IsString() @MaxLength(80)
+  category?: string;
+
+  @IsOptional() @IsString()
+  companyId?: string | null;
+
+  @IsOptional() @IsEnum(ChecklistStatusDto)
+  status?: ChecklistStatusDto;
+
+  @IsOptional() @IsEnum(ChecklistPriorityDto)
+  priority?: ChecklistPriorityDto;
+
+  @IsOptional() @IsDateString()
+  dueDate?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(160)
+  responsible?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(500)
+  evidenceUrl?: string | null;
+}
+</file>
+
+<file path="reforma-360/backend/src/checklist/dto/update-checklist-item.dto.ts">
+import { IsDateString, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { ChecklistPriorityDto, ChecklistStatusDto } from './create-checklist-item.dto';
+
+export class UpdateChecklistItemDto {
+  @IsOptional() @IsString() @MinLength(2) @MaxLength(180)
+  title?: string;
+
+  @IsOptional() @IsString() @MaxLength(2000)
+  description?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(80)
+  category?: string;
+
+  @IsOptional() @IsString()
+  companyId?: string | null;
+
+  @IsOptional() @IsEnum(ChecklistStatusDto)
+  status?: ChecklistStatusDto;
+
+  @IsOptional() @IsEnum(ChecklistPriorityDto)
+  priority?: ChecklistPriorityDto;
+
+  @IsOptional() @IsDateString()
+  dueDate?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(160)
+  responsible?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(500)
+  evidenceUrl?: string | null;
+}
+</file>
+
+<file path="reforma-360/backend/src/checklist/checklist.controller.ts">
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { AuthGuard } from '../auth/auth.guard';
+import { ChecklistService } from './checklist.service';
+import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
+import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
+
+@ApiTags('checklist')
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
+@Controller('checklist')
+export class ChecklistController {
+  constructor(private readonly checklistService: ChecklistService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Lista tarefas de uma organização autorizada' })
+  list(@Req() req: Request & { user: { id: string } }, @Query('organizationId') organizationId: string, @Query('companyId') companyId?: string, @Query('status') status?: string) {
+    return this.checklistService.list(req.user.id, organizationId, companyId, status);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Cria tarefa no checklist de uma organização autorizada' })
+  create(@Req() req: Request & { user: { id: string } }, @Query('organizationId') organizationId: string, @Body() dto: CreateChecklistItemDto) {
+    return this.checklistService.create(req.user.id, organizationId, dto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Atualiza tarefa pertencente a uma organização autorizada' })
+  update(@Req() req: Request & { user: { id: string } }, @Param('id') id: string, @Body() dto: UpdateChecklistItemDto) {
+    return this.checklistService.update(req.user.id, id, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Remove tarefa pertencente a uma organização autorizada' })
+  remove(@Req() req: Request & { user: { id: string } }, @Param('id') id: string) {
+    return this.checklistService.remove(req.user.id, id);
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/checklist/checklist.module.ts">
+import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { ChecklistController } from './checklist.controller';
+import { ChecklistService } from './checklist.service';
+
+@Module({
+  imports: [AuthModule],
+  controllers: [ChecklistController],
+  providers: [ChecklistService],
+})
+export class ChecklistModule {}
+</file>
+
+<file path="reforma-360/backend/src/checklist/checklist.service.ts">
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateChecklistItemDto } from './dto/create-checklist-item.dto';
+import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
+
+@Injectable()
+export class ChecklistService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async assertMember(userId: string, organizationId: string) {
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId_organizationId: { userId, organizationId } },
+    });
+    if (!membership) throw new ForbiddenException('Você não tem acesso a esta organização.');
+  }
+
+  private async assertCompanyBelongs(companyId: string | null | undefined, organizationId: string) {
+    if (!companyId) return;
+    const company = await this.prisma.company.findFirst({ where: { id: companyId, organizationId }, select: { id: true } });
+    if (!company) throw new ForbiddenException('A empresa selecionada não pertence a esta organização.');
+  }
+
+  async list(userId: string, organizationId: string, companyId?: string, status?: string) {
+    if (!organizationId) throw new NotFoundException('Selecione uma organização.');
+    await this.assertMember(userId, organizationId);
+    if (companyId) await this.assertCompanyBelongs(companyId, organizationId);
+    return this.prisma.checklistItem.findMany({
+      where: {
+        organizationId,
+        ...(companyId ? { companyId } : {}),
+        ...(status && ['PENDING', 'IN_PROGRESS', 'COMPLETED'].includes(status) ? { status: status as 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' } : {}),
+      },
+      include: { company: { select: { id: true, name: true } } },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async create(userId: string, organizationId: string, dto: CreateChecklistItemDto) {
+    if (!organizationId) throw new NotFoundException('Selecione uma organização.');
+    await this.assertMember(userId, organizationId);
+    await this.assertCompanyBelongs(dto.companyId, organizationId);
+    return this.prisma.checklistItem.create({
+      data: {
+        organizationId,
+        title: dto.title.trim(),
+        description: dto.description?.trim() || null,
+        category: dto.category?.trim() || 'GERAL',
+        companyId: dto.companyId || null,
+        status: dto.status || 'PENDING',
+        priority: dto.priority || 'MEDIUM',
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        responsible: dto.responsible?.trim() || null,
+        evidenceUrl: dto.evidenceUrl?.trim() || null,
+      },
+      include: { company: { select: { id: true, name: true } } },
+    });
+  }
+
+  async update(userId: string, id: string, dto: UpdateChecklistItemDto) {
+    const current = await this.prisma.checklistItem.findUnique({ where: { id } });
+    if (!current) throw new NotFoundException('Tarefa não encontrada.');
+    await this.assertMember(userId, current.organizationId);
+    if (dto.companyId !== undefined) await this.assertCompanyBelongs(dto.companyId, current.organizationId);
+    const data: Record<string, any> = {};
+    if (dto.title !== undefined) data.title = dto.title.trim();
+    if (dto.description !== undefined) data.description = dto.description?.trim() || null;
+    if (dto.category !== undefined) data.category = dto.category.trim() || 'GERAL';
+    if (dto.companyId !== undefined) data.company = dto.companyId ? { connect: { id: dto.companyId } } : { disconnect: true };
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.priority !== undefined) data.priority = dto.priority;
+    if (dto.dueDate !== undefined) data.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
+    if (dto.responsible !== undefined) data.responsible = dto.responsible?.trim() || null;
+    if (dto.evidenceUrl !== undefined) data.evidenceUrl = dto.evidenceUrl?.trim() || null;
+    return this.prisma.checklistItem.update({
+      where: { id },
+      data,
+      include: { company: { select: { id: true, name: true } } },
+    });
+  }
+
+  async remove(userId: string, id: string) {
+    const current = await this.prisma.checklistItem.findUnique({ where: { id }, select: { id: true, organizationId: true } });
+    if (!current) throw new NotFoundException('Tarefa não encontrada.');
+    await this.assertMember(userId, current.organizationId);
+    await this.prisma.checklistItem.delete({ where: { id } });
+    return { success: true };
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/companies/dto/create-company.dto.ts">
+import { IsEnum, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export enum CompanyTaxRegime {
+  SIMPLES_NACIONAL = 'SIMPLES_NACIONAL',
+  LUCRO_PRESUMIDO = 'LUCRO_PRESUMIDO',
+  LUCRO_REAL = 'LUCRO_REAL',
+  NAO_INFORMADO = 'NAO_INFORMADO',
+}
+
+export class CreateCompanyDto {
+  @ApiProperty({ example: 'Empresa Demonstração Ltda' })
+  @IsString() @Length(2, 160)
+  name!: string;
+
+  @ApiProperty({ example: '12345678000199', description: 'CNPJ com 14 dígitos, somente números' })
+  @Matches(/^\d{14}$/, { message: 'taxId deve conter 14 dígitos numéricos' })
+  taxId!: string;
+
+  @ApiProperty({ enum: CompanyTaxRegime })
+  @IsEnum(CompanyTaxRegime)
+  taxRegime!: CompanyTaxRegime;
+
+  @ApiProperty({ example: 'ID_DA_ORGANIZACAO' })
+  @IsString() @Length(1, 64)
+  organizationId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @Length(2, 100)
+  state?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @Length(2, 120)
+  city?: string;
+}
+</file>
+
+<file path="reforma-360/backend/src/companies/companies.controller.ts">
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { AuthGuard } from '../auth/auth.guard';
+import { CompaniesService } from './companies.service';
+import { CreateCompanyDto } from './dto/create-company.dto';
+@ApiTags('companies') @ApiBearerAuth() @UseGuards(AuthGuard) @Controller('companies')
+export class CompaniesController {
+  constructor(private readonly companiesService: CompaniesService) {}
+  @Get() @ApiOperation({ summary: 'Lista empresas somente se o usuário pertencer à organização' }) list(@Req() req: Request & { user: { id: string } }, @Query('organizationId') organizationId: string) { return this.companiesService.list(req.user.id, organizationId); }
+  @Post() @ApiOperation({ summary: 'Cadastra empresa somente em organização autorizada' }) create(@Req() req: Request & { user: { id: string } }, @Body() dto: CreateCompanyDto) { return this.companiesService.create(req.user.id, dto); }
+}
+</file>
+
+<file path="reforma-360/backend/src/companies/companies.module.ts">
+import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { CompaniesController } from './companies.controller';
+import { CompaniesService } from './companies.service';
+@Module({ imports: [AuthModule], controllers: [CompaniesController], providers: [CompaniesService] })
+export class CompaniesModule {}
+</file>
+
+<file path="reforma-360/backend/src/companies/companies.service.ts">
+import { ForbiddenException, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateCompanyDto } from './dto/create-company.dto';
+@Injectable()
+export class CompaniesService {
+  constructor(private readonly prisma: PrismaService) {}
+  private async assertMember(userId: string, organizationId: string) {
+    const membership = await this.prisma.membership.findUnique({ where: { userId_organizationId: { userId, organizationId } } });
+    if (!membership) throw new ForbiddenException('Você não tem acesso a esta organização.');
+  }
+  async list(userId: string, organizationId?: string) {
+    if (!organizationId) throw new NotFoundException('Selecione uma organização.');
+    await this.assertMember(userId, organizationId);
+    return this.prisma.company.findMany({ where: { organizationId }, orderBy: { createdAt: 'desc' } });
+  }
+  async create(userId: string, dto: CreateCompanyDto) {
+    await this.assertMember(userId, dto.organizationId);
+    try {
+      return await this.prisma.company.create({ data: { name: dto.name.trim(), taxId: dto.taxId, taxRegime: dto.taxRegime, organizationId: dto.organizationId, state: dto.state?.trim(), city: dto.city?.trim() } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Já existe uma empresa com esse CNPJ nesta organização.');
+      throw error;
+    }
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/fiscal-documents/fiscal-documents.controller.ts">
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { AuthGuard } from '../auth/auth.guard';
+import { FiscalDocumentsService } from './fiscal-documents.service';
+
+@ApiTags('fiscal-documents')
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
+@Controller('fiscal-documents')
+export class FiscalDocumentsController {
+  constructor(private readonly service: FiscalDocumentsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Lista documentos fiscais da organização autorizada' })
+  list(@Req() req: Request & { user: { id: string } }, @Query('organizationId') organizationId: string) {
+    return this.service.list(req.user.id, organizationId);
+  }
+
+  @Post('import')
+  @ApiOperation({ summary: 'Importa e extrai dados de um XML fiscal' })
+  importXml(@Req() req: Request & { user: { id: string } }, @Body() body: { organizationId: string; fileName: string; xml: string }) {
+    return this.service.importXml(req.user.id, body.organizationId, body.fileName, body.xml);
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/fiscal-documents/fiscal-documents.module.ts">
+import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { FiscalDocumentsController } from './fiscal-documents.controller';
+import { FiscalDocumentsService } from './fiscal-documents.service';
+
+@Module({ imports: [AuthModule], controllers: [FiscalDocumentsController], providers: [FiscalDocumentsService] })
+export class FiscalDocumentsModule {}
+</file>
+
+<file path="reforma-360/backend/src/fiscal-documents/fiscal-documents.service.ts">
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { XMLParser, XMLValidator } from 'fast-xml-parser';
+import { PrismaService } from '../prisma/prisma.service';
+
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', parseTagValue: true, trimValues: true });
+const asObject = (v: any): any => v && typeof v === 'object' ? v : {};
+const text = (v: any): string | null => v === undefined || v === null || typeof v === 'object' ? null : String(v).trim() || null;
+const digits = (v: any): string | null => { const t = text(v); return t ? t.replace(/\D/g, '') || null : null; };
+const money = (v: any): string | null => { const n = Number(v); return Number.isFinite(n) ? n.toFixed(2) : null; };
+
+@Injectable()
+export class FiscalDocumentsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async assertMember(userId: string, organizationId: string) {
+    if (!organizationId) throw new NotFoundException('Selecione uma organização.');
+    const membership = await this.prisma.membership.findUnique({ where: { userId_organizationId: { userId, organizationId } } });
+    if (!membership) throw new ForbiddenException('Você não tem acesso a esta organização.');
+  }
+
+  async list(userId: string, organizationId: string) {
+    await this.assertMember(userId, organizationId);
+    return this.prisma.fiscalDocument.findMany({
+      where: { organizationId }, orderBy: { createdAt: 'desc' },
+      select: { id: true, organizationId: true, fileName: true, accessKey: true, documentNumber: true, series: true, documentType: true, issuerName: true, issuerTaxId: true, recipientName: true, recipientTaxId: true, issuedAt: true, totalAmount: true, status: true, warnings: true, items: true, createdAt: true },
+    });
+  }
+
+  async importXml(userId: string, organizationId: string, fileName: string, xml: string) {
+    await this.assertMember(userId, organizationId);
+    if (!fileName || !/\.(xml|txt)$/i.test(fileName)) throw new BadRequestException('Selecione um arquivo com extensão .xml ou .txt.');
+    if (typeof xml !== 'string' || !xml.trim()) throw new BadRequestException('O arquivo está vazio.');
+    if (Buffer.byteLength(xml, 'utf8') > 5_000_000) throw new BadRequestException('O arquivo excede o limite de 5 MB.');
+    if (fileName.toLowerCase().endsWith('.txt')) {
+      const duplicateText = await this.prisma.fiscalDocument.findFirst({ where: { organizationId, fileName: fileName.slice(0, 255), documentType: 'TEXT' }, select: { id: true } });
+      if (duplicateText) throw new ConflictException('Já existe um arquivo TXT com este nome nesta organização.');
+      return this.prisma.fiscalDocument.create({ data: {
+        organizationId, fileName: fileName.slice(0, 255), accessKey: null, documentType: 'TEXT',
+        status: 'REVIEW', warnings: ['Arquivo de texto anexado como material de apoio.', 'A extração automática de campos fiscais está disponível nesta etapa para XML de NF-e. Revise o conteúdo deste TXT manualmente.'],
+        items: [], rawXml: xml,
+      }, select: { id: true, organizationId: true, fileName: true, accessKey: true, documentNumber: true, series: true, documentType: true, issuerName: true, issuerTaxId: true, recipientName: true, recipientTaxId: true, issuedAt: true, totalAmount: true, status: true, warnings: true, items: true, createdAt: true } });
+    }
+    const valid = XMLValidator.validate(xml);
+    if (valid !== true) throw new BadRequestException('XML inválido: verifique a estrutura do arquivo.');
+    let root: any;
+    try { root = asObject(parser.parse(xml)); } catch { throw new BadRequestException('Não foi possível interpretar o XML.'); }
+    const nfe = asObject(root.nfeProc).NFe || root.NFe || root.nfeProc?.NFe;
+    const inf = asObject(asObject(nfe).infNFe);
+    if (!Object.keys(inf).length) throw new BadRequestException('O XML não parece ser uma NF-e reconhecida. Envie um XML de NF-e (modelo 55).');
+    const ide = asObject(inf.ide), emit = asObject(inf.emit), dest = asObject(inf.dest), total = asObject(asObject(inf.total).ICMSTot);
+    const keyFromId = text(inf['@_Id'])?.replace(/^NFe/, '') || null;
+    const protocol = asObject(asObject(root.nfeProc).protNFe);
+    const protocolInfo = asObject(protocol.infProt);
+    const accessKey = text(protocolInfo.chNFe) || keyFromId;
+    const itemsRaw = inf.det === undefined ? [] : Array.isArray(inf.det) ? inf.det : [inf.det];
+    const items = itemsRaw.map((row: any) => {
+      const detail = asObject(row), prod = asObject(detail.prod), taxes = asObject(detail.imposto);
+      return { itemNumber: text(detail['@_nItem']), code: text(prod.cProd), description: text(prod.xProd), ncm: text(prod.NCM), cfop: text(prod.CFOP), unit: text(prod.uCom), quantity: text(prod.qCom), unitPrice: money(prod.vUnCom), total: money(prod.vProd), taxes: Object.keys(taxes) };
+    });
+    const warnings: string[] = [];
+    if (!accessKey) warnings.push('Chave de acesso não identificada no XML.');
+    if (!emit.CNPJ && !emit.CPF) warnings.push('CNPJ/CPF do emitente não identificado.');
+    if (!items.length) warnings.push('Nenhum item de produto foi identificado.');
+    if (items.some((item: any) => !item.ncm)) warnings.push('Um ou mais itens estão sem NCM.');
+    if (!total.vNF) warnings.push('Valor total da NF-e não identificado.');
+    if (accessKey) {
+      const duplicate = await this.prisma.fiscalDocument.findFirst({ where: { organizationId, accessKey }, select: { id: true, fileName: true } });
+      if (duplicate) throw new ConflictException(`Este documento já foi importado nesta organização (arquivo: ${duplicate.fileName}).`);
+    }
+    const issuedAtRaw = text(ide.dhEmi) || text(ide.dEmi);
+    const issuedAt = issuedAtRaw ? new Date(issuedAtRaw) : null;
+    return this.prisma.fiscalDocument.create({ data: {
+      organizationId, fileName: fileName.slice(0, 255), accessKey,
+      documentNumber: text(ide.nNF), series: text(ide.serie), documentType: 'NFE',
+      issuerName: text(emit.xNome), issuerTaxId: digits(emit.CNPJ || emit.CPF),
+      recipientName: text(dest.xNome), recipientTaxId: digits(dest.CNPJ || dest.CPF),
+      issuedAt: issuedAt && !Number.isNaN(issuedAt.getTime()) ? issuedAt : null,
+      totalAmount: total.vNF !== undefined && Number.isFinite(Number(total.vNF)) ? Number(total.vNF).toFixed(2) : null,
+      status: warnings.length ? 'REVIEW' : 'PROCESSED', warnings, items, rawXml: xml,
+    }, select: { id: true, organizationId: true, fileName: true, accessKey: true, documentNumber: true, series: true, documentType: true, issuerName: true, issuerTaxId: true, recipientName: true, recipientTaxId: true, issuedAt: true, totalAmount: true, status: true, warnings: true, items: true, createdAt: true } });
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/organizations/dto/create-organization.dto.ts">
+import { IsEnum, IsString, Length } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+export enum OrganizationTypeDto {
+  ACCOUNTING_FIRM = 'ACCOUNTING_FIRM',
+  COMPANY = 'COMPANY',
+  TAX_DEPARTMENT = 'TAX_DEPARTMENT',
+}
+
+export class CreateOrganizationDto {
+  @ApiProperty({ example: 'Escritório Exemplo Contábil' })
+  @IsString() @Length(2, 160)
+  name!: string;
+
+  @ApiProperty({ enum: OrganizationTypeDto, example: 'ACCOUNTING_FIRM' })
+  @IsEnum(OrganizationTypeDto)
+  type!: OrganizationTypeDto;
+}
+</file>
+
+<file path="reforma-360/backend/src/organizations/organizations.controller.ts">
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { AuthGuard } from '../auth/auth.guard';
+import { OrganizationsService } from './organizations.service';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+@ApiTags('organizations') @ApiBearerAuth() @UseGuards(AuthGuard) @Controller('organizations')
+export class OrganizationsController {
+  constructor(private readonly organizationsService: OrganizationsService) {}
+  @Get() @ApiOperation({ summary: 'Lista apenas organizações do usuário autenticado' }) list(@Req() req: Request & { user: { id: string } }) { return this.organizationsService.list(req.user.id); }
+  @Post() @ApiOperation({ summary: 'Cria organização e associa o usuário como proprietário' }) create(@Req() req: Request & { user: { id: string } }, @Body() dto: CreateOrganizationDto) { return this.organizationsService.create(req.user.id, dto); }
+}
+</file>
+
+<file path="reforma-360/backend/src/organizations/organizations.module.ts">
+import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { OrganizationsController } from './organizations.controller';
+import { OrganizationsService } from './organizations.service';
+@Module({ imports: [AuthModule], controllers: [OrganizationsController], providers: [OrganizationsService] })
+export class OrganizationsModule {}
+</file>
+
+<file path="reforma-360/backend/src/organizations/organizations.service.ts">
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+@Injectable()
+export class OrganizationsService {
+  constructor(private readonly prisma: PrismaService) {}
+  list(userId: string) { return this.prisma.organization.findMany({ where: { members: { some: { userId } } }, orderBy: { createdAt: 'desc' } }); }
+  async create(userId: string, dto: CreateOrganizationDto) {
+    return this.prisma.$transaction(async tx => {
+      const org = await tx.organization.create({ data: { name: dto.name.trim(), type: dto.type } });
+      await tx.membership.create({ data: { userId, organizationId: org.id, role: 'OWNER' } });
+      return org;
+    });
+  }
+  async assertMember(userId: string, organizationId: string) {
+    const membership = await this.prisma.membership.findUnique({ where: { userId_organizationId: { userId, organizationId } } });
+    if (!membership) throw new ForbiddenException('Você não tem acesso a esta organização.');
+    return membership;
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/prisma/prisma.module.ts">
+import { Global, Module } from '@nestjs/common';
+import { PrismaService } from './prisma.service';
+
+@Global()
+@Module({ providers: [PrismaService], exports: [PrismaService] })
+export class PrismaModule {}
+</file>
+
+<file path="reforma-360/backend/src/prisma/prisma.service.ts">
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
+
+@Injectable()
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  async onModuleInit() { await this.$connect(); }
+  async onModuleDestroy() { await this.$disconnect(); }
+}
+</file>
+
+<file path="reforma-360/backend/src/tax-simulations/tax-simulations.controller.ts">
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { AuthGuard } from '../auth/auth.guard';
+import { TaxSimulationsService } from './tax-simulations.service';
+
+@ApiTags('tax-simulations')
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
+@Controller('tax-simulations')
+export class TaxSimulationsController {
+  constructor(private readonly service: TaxSimulationsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Lista simulações da organização autorizada' })
+  list(@Req() req: Request & { user: { id: string } }, @Query('organizationId') organizationId: string) {
+    return this.service.list(req.user.id, organizationId);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Calcula e salva uma simulação preliminar CBS/IBS' })
+  create(@Req() req: Request & { user: { id: string } }, @Body() body: { organizationId: string; name: string; inputs: Record<string, unknown> }) {
+    return this.service.create(req.user.id, body);
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/tax-simulations/tax-simulations.module.ts">
+import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
+import { TaxSimulationsController } from './tax-simulations.controller';
+import { TaxSimulationsService } from './tax-simulations.service';
+
+@Module({
+  imports: [AuthModule],
+  controllers: [TaxSimulationsController],
+  providers: [TaxSimulationsService],
+})
+export class TaxSimulationsModule {}
+</file>
+
+<file path="reforma-360/backend/src/tax-simulations/tax-simulations.service.ts">
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+
+type Inputs = {
+  revenue: number;
+  purchases: number;
+  currentRate: number;
+  cbsRate: number;
+  ibsRate: number;
+  reduction: number;
+  creditablePurchases: number;
+};
+
+const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const numeric = (value: unknown, field: string) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) throw new BadRequestException(`O campo ${field} deve ser um número maior ou igual a zero.`);
+  return number;
+};
+
+@Injectable()
+export class TaxSimulationsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private async assertMember(userId: string, organizationId: string) {
+    if (!organizationId) throw new NotFoundException('Selecione uma organização.');
+    const membership = await this.prisma.membership.findUnique({ where: { userId_organizationId: { userId, organizationId } } });
+    if (!membership) throw new ForbiddenException('Você não tem acesso a esta organização.');
+  }
+
+  private calculate(raw: Record<string, unknown>) {
+    const inputs: Inputs = {
+      revenue: numeric(raw.revenue, 'faturamento'),
+      purchases: numeric(raw.purchases, 'compras'),
+      currentRate: numeric(raw.currentRate, 'alíquota atual'),
+      cbsRate: numeric(raw.cbsRate, 'alíquota CBS'),
+      ibsRate: numeric(raw.ibsRate, 'alíquota IBS'),
+      reduction: numeric(raw.reduction, 'redução'),
+      creditablePurchases: numeric(raw.creditablePurchases, 'percentual de compras creditáveis'),
+    };
+    if (inputs.currentRate > 100 || inputs.cbsRate > 100 || inputs.ibsRate > 100 || inputs.reduction > 100 || inputs.creditablePurchases > 100) {
+      throw new BadRequestException('Alíquotas, redução e percentual de compras creditáveis devem estar entre 0 e 100.');
+    }
+    const currentTax = round(inputs.revenue * inputs.currentRate / 100);
+    const nominalReformRate = inputs.cbsRate + inputs.ibsRate;
+    const effectiveReformRate = nominalReformRate * (1 - inputs.reduction / 100);
+    const grossReformTax = round(inputs.revenue * effectiveReformRate / 100);
+    const eligiblePurchaseBase = inputs.purchases * inputs.creditablePurchases / 100;
+    const estimatedCredits = round(eligiblePurchaseBase * effectiveReformRate / 100);
+    const netReformTax = round(Math.max(0, grossReformTax - estimatedCredits));
+    const difference = round(netReformTax - currentTax);
+    return {
+      currentTax, nominalReformRate: round(nominalReformRate), effectiveReformRate: round(effectiveReformRate),
+      grossReformTax, eligiblePurchaseBase: round(eligiblePurchaseBase), estimatedCredits,
+      netReformTax, difference, differencePercent: currentTax ? round((difference / currentTax) * 100) : null,
+      estimatedMarginBeforeTax: round(inputs.revenue - inputs.purchases),
+      estimatedMarginAfterCurrentTax: round(inputs.revenue - inputs.purchases - currentTax),
+      estimatedMarginAfterReformTax: round(inputs.revenue - inputs.purchases - netReformTax),
+      methodology: 'Estimativa simplificada: tributo atual = faturamento × alíquota atual; CBS/IBS = faturamento × (CBS + IBS) ajustado pela redução; crédito estimado = compras × percentual creditável × alíquota efetiva. Não contempla todas as regras, exceções, regimes ou limitações legais.',
+    };
+  }
+
+  async list(userId: string, organizationId: string) {
+    await this.assertMember(userId, organizationId);
+    return this.prisma.taxSimulation.findMany({ where: { organizationId }, orderBy: { createdAt: 'desc' }, take: 100 });
+  }
+
+  async create(userId: string, body: { organizationId: string; name: string; inputs: Record<string, unknown> }) {
+    await this.assertMember(userId, body.organizationId);
+    if (!body.name?.trim()) throw new BadRequestException('Informe um nome para a simulação.');
+    if (!body.inputs || typeof body.inputs !== 'object' || Array.isArray(body.inputs)) throw new BadRequestException('Informe os parâmetros da simulação.');
+    const results = this.calculate(body.inputs);
+    return this.prisma.taxSimulation.create({
+      data: { organizationId: body.organizationId, name: body.name.trim().slice(0, 120), inputs: body.inputs as any, results: results as any },
+    });
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/app.module.ts">
+import { Module } from '@nestjs/common';
+import { PrismaModule } from './prisma/prisma.module';
+import { HealthController } from './health.controller';
+import { CompaniesModule } from './companies/companies.module';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { AuthModule } from './auth/auth.module';
+import { ChecklistModule } from './checklist/checklist.module';
+import { FiscalDocumentsModule } from './fiscal-documents/fiscal-documents.module';
+import { TaxSimulationsModule } from './tax-simulations/tax-simulations.module';
+@Module({ imports: [PrismaModule, AuthModule, CompaniesModule, OrganizationsModule, ChecklistModule, FiscalDocumentsModule, TaxSimulationsModule], controllers: [HealthController] })
+export class AppModule {}
+</file>
+
+<file path="reforma-360/backend/src/health.controller.ts">
+import { Controller, Get } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+
+@ApiTags('health')
+@Controller('health')
+export class HealthController {
+  @Get()
+  @ApiOperation({ summary: 'Verifica se a API está funcionando' })
+  getHealth() {
+    return { status: 'ok', service: 'Reforma 360 API', version: '0.3.0', timestamp: new Date().toISOString() };
+  }
+}
+</file>
+
+<file path="reforma-360/backend/src/main.ts">
+import 'dotenv/config';
+import 'reflect-metadata';
+import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { json, urlencoded } from 'express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  // Permite importar XML/TXT de até 5 MB enviados como JSON pela interface.
+  app.use(json({ limit: '6mb' }));
+  app.use(urlencoded({ extended: true, limit: '6mb' }));
+  app.setGlobalPrefix('api');
+  app.enableCors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+  const swaggerConfig = new DocumentBuilder().setTitle('Reforma 360 API').setDescription('API inicial da plataforma Reforma 360').setVersion('0.3.0').build();
+  SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));
+  await app.listen(process.env.PORT || 3001);
+}
+bootstrap();
+</file>
+
+<file path="reforma-360/backend/.gitignore">
+node_modules/
+dist/
+.env
+coverage/
+</file>
+
+<file path="reforma-360/backend/nest-cli.json">
+{"collection":"@nestjs/schematics","sourceRoot":"src","compilerOptions":{"deleteOutDir":true}}
+</file>
+
+<file path="reforma-360/backend/package.json">
+{
+  "name": "reforma-360-api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "test": "jest",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.15",
+    "@nestjs/core": "^10.4.15",
+    "@nestjs/jwt": "^10.2.0",
+    "@nestjs/platform-express": "^10.4.15",
+    "@nestjs/swagger": "^8.1.0",
+    "@prisma/client": "^6.16.2",
+    "bcryptjs": "^2.4.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "dotenv": "^16.4.7",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "fast-xml-parser": "^5.2.5"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.9",
+    "@nestjs/schematics": "^10.2.3",
+    "@nestjs/testing": "^10.4.15",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "jest": "^29.7.0",
+    "prisma": "^6.16.2",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.2"
+  }
+}
+</file>
+
+<file path="reforma-360/backend/tsconfig.json">
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2022",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}
+</file>
+
+<file path="reforma-360/frontend/app/checklist/page.tsx">
+'use client';
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, CheckCircle2, ClipboardCheck, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+
+type Organization = { id: string; name: string };
+type Company = { id: string; name: string };
+type Status = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+type Priority = 'LOW' | 'MEDIUM' | 'HIGH';
+type Item = {
+  id: string; organizationId: string; companyId: string | null; title: string;
+  description: string | null; category: string; status: Status; priority: Priority;
+  dueDate: string | null; responsible: string | null; evidenceUrl: string | null;
+  company?: Company | null; createdAt: string;
+};
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const statusLabel: Record<Status, string> = { PENDING: 'Pendente', IN_PROGRESS: 'Em andamento', COMPLETED: 'Concluída' };
+const priorityLabel: Record<Priority, string> = { LOW: 'Baixa', MEDIUM: 'Média', HIGH: 'Alta' };
+const dateLabel = (value: string | null) => value ? new Date(value).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Sem prazo';
+
+async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = window.localStorage.getItem('reforma360_access_token');
+  const response = await fetch(`${API}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options?.headers || {}) },
+  });
+  if (response.status === 204) return undefined as T;
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || 'Não foi possível concluir a solicitação.');
+  return body as T;
+}
+
+export default function ChecklistPage() {
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [organizationId, setOrganizationId] = useState('');
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'ALL' | Status>('ALL');
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('GERAL');
+  const [companyId, setCompanyId] = useState('');
+  const [priority, setPriority] = useState<Priority>('MEDIUM');
+  const [dueDate, setDueDate] = useState('');
+  const [responsible, setResponsible] = useState('');
+  const [evidenceUrl, setEvidenceUrl] = useState('');
+
+  const load = useCallback(async (preferredId?: string) => {
+    setLoading(true); setError('');
+    try {
+      const orgs = await apiRequest<Organization[]>('/organizations');
+      setOrganizations(orgs);
+      const active = orgs.find(o => o.id === (preferredId || organizationId))?.id || orgs[0]?.id || '';
+      setOrganizationId(active);
+      if (!active) { setItems([]); setCompanies([]); return; }
+      const [tasks, businesses] = await Promise.all([
+        apiRequest<Item[]>(`/checklist?organizationId=${encodeURIComponent(active)}`),
+        apiRequest<Company[]>(`/companies?organizationId=${encodeURIComponent(active)}`),
+      ]);
+      setItems(tasks); setCompanies(businesses);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao carregar o checklist.');
+    } finally { setLoading(false); }
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (!window.localStorage.getItem('reforma360_access_token')) {
+      setError('Sua sessão não foi encontrada. Volte ao painel e entre novamente.');
+      setLoading(false);
+      return;
+    }
+    void load();
+  }, [load]);
+
+  const visibleItems = useMemo(() => items.filter(item => {
+    const matchesStatus = filter === 'ALL' || item.status === filter;
+    const text = `${item.title} ${item.description || ''} ${item.category} ${item.company?.name || ''}`.toLowerCase();
+    return matchesStatus && text.includes(search.toLowerCase());
+  }), [items, filter, search]);
+  const pending = items.filter(i => i.status === 'PENDING').length;
+  const inProgress = items.filter(i => i.status === 'IN_PROGRESS').length;
+  const completed = items.filter(i => i.status === 'COMPLETED').length;
+
+  async function createItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!organizationId) { setError('Cadastre ou selecione uma organização no painel antes de criar tarefas.'); return; }
+    setSaving(true); setError('');
+    try {
+      await apiRequest<Item>(`/checklist?organizationId=${encodeURIComponent(organizationId)}`, {
+        method: 'POST',
+        body: JSON.stringify({ title: title.trim(), description: description.trim() || undefined, category, companyId: companyId || undefined, priority, dueDate: dueDate || undefined, responsible: responsible.trim() || undefined, evidenceUrl: evidenceUrl.trim() || undefined }),
+      });
+      setTitle(''); setDescription(''); setCategory('GERAL'); setCompanyId(''); setPriority('MEDIUM'); setDueDate(''); setResponsible(''); setEvidenceUrl(''); setShowForm(false);
+      await load(organizationId);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível salvar a tarefa.'); }
+    finally { setSaving(false); }
+  }
+
+  async function changeStatus(item: Item, status: Status) {
+    setError('');
+    try {
+      const updated = await apiRequest<Item>(`/checklist/${encodeURIComponent(item.id)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      setItems(current => current.map(x => x.id === updated.id ? updated : x));
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível atualizar a tarefa.'); }
+  }
+
+  async function removeItem(item: Item) {
+    if (!window.confirm(`Excluir a tarefa “${item.title}”?`)) return;
+    setError('');
+    try {
+      await apiRequest(`/checklist/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+      setItems(current => current.filter(x => x.id !== item.id));
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível excluir a tarefa.'); }
+  }
+
+  return <main className="checklist-page">
+    <header className="checklist-header">
+      <div>
+        <Link href="/" className="checklist-back"><ArrowLeft size={16}/> Voltar ao painel</Link>
+        <div className="checklist-title-row"><span className="checklist-mark"><ClipboardCheck size={22}/></span><div><h1>Checklist de adequação</h1><p>Organize tarefas, responsáveis, prazos e evidências da transição tributária.</p></div></div>
+      </div>
+      <div className="checklist-actions"><button className="btn btn-light" type="button" onClick={() => void load(organizationId)} disabled={loading}><RefreshCw size={15}/> Atualizar</button><button className="btn btn-primary" type="button" onClick={() => setShowForm(v => !v)}><Plus size={16}/> Nova tarefa</button></div>
+    </header>
+
+    <section className="checklist-orgbar">
+      <div><span className="eyebrow">ORGANIZAÇÃO ATIVA</span><strong>{organizations.find(o => o.id === organizationId)?.name || 'Nenhuma organização cadastrada'}</strong></div>
+      <select aria-label="Selecionar organização" value={organizationId} onChange={e => { setOrganizationId(e.target.value); void load(e.target.value); }} disabled={!organizations.length}><option value="">Selecione uma organização</option>{organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}</select>
+    </section>
+
+    {error && <div className="checklist-error" role="alert">{error}</div>}
+    {!organizations.length && !loading && <div className="checklist-empty"><h2>Crie sua organização primeiro</h2><p>O checklist fica vinculado à organização selecionada para manter os dados separados por conta.</p><Link href="/" className="btn btn-primary">Ir ao painel</Link></div>}
+
+    <section className="checklist-stats">
+      <article><span>Pendentes</span><strong>{pending}</strong><small>Aguardando início</small></article>
+      <article><span>Em andamento</span><strong>{inProgress}</strong><small>Em execução</small></article>
+      <article><span>Concluídas</span><strong>{completed}</strong><small>Finalizadas</small></article>
+      <article><span>Total de tarefas</span><strong>{items.length}</strong><small>Na organização ativa</small></article>
+    </section>
+
+    {showForm && <section className="checklist-form-card"><div className="checklist-section-heading"><div><h2>Nova tarefa</h2><p>Defina o que precisa ser feito e quem acompanhará.</p></div></div>
+      <form className="checklist-form" onSubmit={createItem}>
+        <label className="span-2">Título da tarefa<input required minLength={2} maxLength={180} value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex.: Mapear operações sujeitas à CBS e ao IBS"/></label>
+        <label>Categoria<select value={category} onChange={e => setCategory(e.target.value)}><option value="GERAL">Geral</option><option value="CADASTRO">Cadastros fiscais</option><option value="SISTEMAS">Sistemas e ERP</option><option value="DOCUMENTOS">Documentos fiscais</option><option value="CREDITOS">Créditos tributários</option><option value="PROCESSOS">Processos internos</option><option value="TREINAMENTO">Treinamento</option></select></label>
+        <label>Empresa (opcional)<select value={companyId} onChange={e => setCompanyId(e.target.value)}><option value="">Todas / organização</option>{companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label>
+        <label>Prioridade<select value={priority} onChange={e => setPriority(e.target.value as Priority)}><option value="LOW">Baixa</option><option value="MEDIUM">Média</option><option value="HIGH">Alta</option></select></label>
+        <label>Prazo<input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}/></label>
+        <label>Responsável<input maxLength={160} value={responsible} onChange={e => setResponsible(e.target.value)} placeholder="Nome do responsável"/></label>
+        <label>Link da evidência<input type="url" maxLength={500} value={evidenceUrl} onChange={e => setEvidenceUrl(e.target.value)} placeholder="https://..."/></label>
+        <label className="span-2">Descrição (opcional)<textarea maxLength={2000} rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Detalhe a atividade, documentos necessários ou critérios de conclusão."/></label>
+        <div className="checklist-form-actions span-2"><button className="btn btn-light" type="button" onClick={() => setShowForm(false)}>Cancelar</button><button className="btn btn-primary" type="submit" disabled={saving || !organizationId}>{saving ? 'Salvando…' : 'Salvar tarefa'}</button></div>
+      </form>
+    </section>}
+
+    <section className="checklist-list-card">
+      <div className="checklist-section-heading"><div><h2>Tarefas da organização</h2><p>O acesso é validado pela organização associada à sua conta.</p></div><span className="checklist-total">{visibleItems.length} tarefa(s)</span></div>
+      <div className="checklist-toolbar"><div className="checklist-search"><Search size={16}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar tarefa, empresa ou categoria" aria-label="Buscar tarefas"/></div><select aria-label="Filtrar por status" value={filter} onChange={e => setFilter(e.target.value as 'ALL' | Status)}><option value="ALL">Todos os status</option><option value="PENDING">Pendentes</option><option value="IN_PROGRESS">Em andamento</option><option value="COMPLETED">Concluídas</option></select></div>
+      {loading ? <div className="checklist-empty">Carregando tarefas…</div> : visibleItems.length === 0 ? <div className="checklist-empty"><CheckCircle2 size={28}/><h3>{items.length ? 'Nenhuma tarefa encontrada' : 'Seu checklist está vazio'}</h3><p>{items.length ? 'Altere a busca ou o filtro de status.' : 'Crie a primeira tarefa para começar a organizar a adequação tributária.'}</p>{!items.length && <button className="btn btn-primary" type="button" onClick={() => setShowForm(true)}><Plus size={16}/> Criar primeira tarefa</button>}</div> :
+        <div className="checklist-items">{visibleItems.map(item => <article className={`checklist-item status-${item.status.toLowerCase()}`} key={item.id}>
+          <div className="checklist-item-main"><div className="checklist-item-top"><span className={`priority-dot priority-${item.priority.toLowerCase()}`}/><span className="checklist-category">{item.category}</span><span className={`checklist-priority priority-label-${item.priority.toLowerCase()}`}>{priorityLabel[item.priority]}</span></div><h3>{item.title}</h3>{item.description && <p>{item.description}</p>}<div className="checklist-meta"><span>{item.company?.name || 'Organização inteira'}</span><span>Prazo: {dateLabel(item.dueDate)}</span>{item.responsible && <span>Responsável: {item.responsible}</span>}{item.evidenceUrl && <a href={item.evidenceUrl} target="_blank" rel="noreferrer">Abrir evidência</a>}</div></div>
+          <div className="checklist-item-controls"><label>Status<select aria-label={`Status de ${item.title}`} value={item.status} onChange={e => void changeStatus(item, e.target.value as Status)}><option value="PENDING">Pendente</option><option value="IN_PROGRESS">Em andamento</option><option value="COMPLETED">Concluída</option></select></label><button className="checklist-delete" type="button" onClick={() => void removeItem(item)} aria-label={`Excluir ${item.title}`} title="Excluir tarefa"><Trash2 size={16}/></button></div>
+        </article>)}</div>}
+    </section>
+    <footer className="checklist-footer">Reforma 360 · Checklist de adequação tributária · Etapa 2</footer>
+  </main>;
+}
+</file>
+
+<file path="reforma-360/frontend/app/simulador/page.tsx">
+'use client';
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Calculator, CheckCircle2, Clock3, FileText, Info, Save, TrendingDown, TrendingUp } from 'lucide-react';
+
+type Organization = { id: string; name: string };
+type Inputs = { revenue: string; purchases: string; currentRate: string; cbsRate: string; ibsRate: string; reduction: string; creditablePurchases: string };
+type Simulation = { id: string; name: string; inputs: Inputs; results: Results; createdAt: string };
+type Results = { currentTax: number; nominalReformRate: number; effectiveReformRate: number; grossReformTax: number; eligiblePurchaseBase: number; estimatedCredits: number; netReformTax: number; difference: number; differencePercent: number | null; estimatedMarginBeforeTax: number; estimatedMarginAfterCurrentTax: number; estimatedMarginAfterReformTax: number; methodology: string };
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const defaults: Inputs = { revenue: '100000', purchases: '45000', currentRate: '12', cbsRate: '8.8', ibsRate: '17.7', reduction: '0', creditablePurchases: '80' };
+const money = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const pct = (n: number | null) => n === null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? window.localStorage.getItem('reforma360_access_token') : null;
+  const response = await fetch(`${API}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options?.headers || {}) } });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(Array.isArray(body.message) ? body.message.join(' ') : body.message || 'Não foi possível concluir a operação.');
+  return body as T;
+}
+function estimate(v: Inputs): Results {
+  const revenue = Math.max(0, Number(v.revenue) || 0), purchases = Math.max(0, Number(v.purchases) || 0);
+  const currentRate = Math.max(0, Number(v.currentRate) || 0), cbs = Math.max(0, Number(v.cbsRate) || 0), ibs = Math.max(0, Number(v.ibsRate) || 0);
+  const reduction = Math.min(100, Math.max(0, Number(v.reduction) || 0)), creditable = Math.min(100, Math.max(0, Number(v.creditablePurchases) || 0));
+  const currentTax = revenue * currentRate / 100, effectiveReformRate = (cbs + ibs) * (1 - reduction / 100);
+  const grossReformTax = revenue * effectiveReformRate / 100, eligiblePurchaseBase = purchases * creditable / 100;
+  const estimatedCredits = eligiblePurchaseBase * effectiveReformRate / 100, netReformTax = Math.max(0, grossReformTax - estimatedCredits), difference = netReformTax - currentTax;
+  return { currentTax, nominalReformRate: cbs + ibs, effectiveReformRate, grossReformTax, eligiblePurchaseBase, estimatedCredits, netReformTax, difference, differencePercent: currentTax ? difference / currentTax * 100 : null, estimatedMarginBeforeTax: revenue - purchases, estimatedMarginAfterCurrentTax: revenue - purchases - currentTax, estimatedMarginAfterReformTax: revenue - purchases - netReformTax, methodology: 'Estimativa simplificada. Não contempla todas as regras, exceções, regimes, limitações de crédito ou particularidades da operação.' };
+}
+export default function SimulatorPage() {
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [organizationId, setOrganizationId] = useState('');
+  const [name, setName] = useState('Cenário base');
+  const [inputs, setInputs] = useState<Inputs>(defaults);
+  const [history, setHistory] = useState<Simulation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const results = useMemo(() => estimate(inputs), [inputs]);
+  const load = useCallback(async (preferred?: string) => {
+    setLoading(true); setError('');
+    try {
+      const orgs = await request<Organization[]>('/organizations');
+      setOrganizations(orgs);
+      const active = orgs.find(o => o.id === (preferred || organizationId))?.id || orgs[0]?.id || '';
+      setOrganizationId(active);
+      setHistory(active ? await request<Simulation[]>(`/tax-simulations?organizationId=${encodeURIComponent(active)}`) : []);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao carregar simulações.'); }
+    finally { setLoading(false); }
+  }, [organizationId]);
+  useEffect(() => { if (!window.localStorage.getItem('reforma360_access_token')) { window.location.href = '/'; return; } void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const update = (key: keyof Inputs, value: string) => setInputs(prev => ({ ...prev, [key]: value }));
+  async function save(event: FormEvent) {
+    event.preventDefault(); setError(''); setNotice('');
+    if (!organizationId) { setError('Cadastre ou selecione uma organização antes de salvar.'); return; }
+    setSaving(true);
+    try {
+      await request<Simulation>('/tax-simulations', { method: 'POST', body: JSON.stringify({ organizationId, name, inputs: Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, Number(v)])) }) });
+      setNotice('Simulação calculada e salva no histórico da organização.');
+      await load(organizationId);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao salvar a simulação.'); }
+    finally { setSaving(false); }
+  }
+  function openScenario(item: Simulation) {
+    setName(item.name); setInputs(Object.fromEntries(Object.entries(item.inputs).map(([k, v]) => [k, String(v)])) as Inputs);
+    setNotice(`Cenário “${item.name}” carregado para consulta e edição.`);
+  }
+  const fields: { key: keyof Inputs; label: string; suffix?: string; help: string }[] = [
+    { key: 'revenue', label: 'Faturamento / vendas', help: 'Valor de vendas considerado no período.' },
+    { key: 'purchases', label: 'Compras e custos', help: 'Base aproximada de compras para estimar créditos e margem.' },
+    { key: 'currentRate', label: 'Carga tributária atual estimada', suffix: '%', help: 'Percentual efetivo aproximado do cenário atual.' },
+    { key: 'cbsRate', label: 'Alíquota CBS de referência', suffix: '%', help: 'Premissa editável; confirme a alíquota aplicável ao período.' },
+    { key: 'ibsRate', label: 'Alíquota IBS de referência', suffix: '%', help: 'Premissa editável; confirme a alíquota aplicável ao período.' },
+    { key: 'reduction', label: 'Redução aplicada à alíquota', suffix: '%', help: 'Use somente se houver hipótese de redução aplicável à operação.' },
+    { key: 'creditablePurchases', label: 'Percentual de compras potencialmente creditáveis', suffix: '%', help: 'Estimativa manual; não significa direito automático a crédito.' },
+  ];
+  return <main className="dashboard-shell sim-page">
+    <header className="topbar"><Link href="/" className="brand"><span className="brand-mark">R</span><span>Reforma <b>360</b></span></Link><Link href="/" className="btn btn-light"><ArrowLeft size={16}/> Voltar ao painel</Link></header>
+    <section className="page-content sim-content">
+      <div className="sim-heading"><div><span className="eyebrow">ETAPA 4 · PLANEJAMENTO TRIBUTÁRIO</span><h1>Simulador CBS / IBS</h1><p>Compare premissas tributárias e visualize impactos estimados no caixa e na margem.</p></div><div className="sim-live"><span></span> Cálculo instantâneo</div></div>
+      {error && <div className="sim-alert error">{error}</div>}{notice && <div className="sim-alert success"><CheckCircle2 size={17}/>{notice}</div>}
+      <div className="sim-warning"><Info size={19}/><div><strong>Simulação gerencial preliminar</strong><p>Os resultados usam fórmulas simplificadas e alíquotas informadas por você. Não substituem apuração fiscal, enquadramento tributário nem validação das regras vigentes. A transição, regimes específicos, destino, natureza da operação e limites de crédito podem alterar o resultado real.</p></div></div>
+      <div className="sim-layout">
+        <form className="sim-card sim-form" onSubmit={save}>
+          <div className="sim-card-head"><div className="sim-icon"><Calculator size={20}/></div><div><h2>Premissas do cenário</h2><p>Altere os campos para atualizar os resultados.</p></div></div>
+          <label className="sim-label">Organização<select value={organizationId} onChange={e => { setOrganizationId(e.target.value); void load(e.target.value); }}><option value="">Selecione uma organização</option>{organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
+          <label className="sim-label">Nome do cenário<input value={name} onChange={e => setName(e.target.value)} maxLength={120} required /></label>
+          <div className="sim-field-grid">{fields.map(f => <label className="sim-label" key={f.key}>{f.label}<div className="sim-input-wrap"><input type="number" min="0" max={f.suffix ? '100' : undefined} step="0.01" value={inputs[f.key]} onChange={e => update(f.key, e.target.value)} required/><span>{f.suffix || 'R$'}</span></div><small>{f.help}</small></label>)}</div>
+          <button className="btn sim-save" type="submit" disabled={saving || loading || !organizationId}><Save size={16}/>{saving ? 'Salvando...' : 'Calcular e salvar cenário'}</button>
+        </form>
+        <div className="sim-results">
+          <div className="sim-result-hero"><span>Diferença estimada de tributos</span><strong className={results.difference > 0 ? 'negative' : 'positive'}>{money(results.difference)}</strong><small>{results.difference > 0 ? 'Aumento estimado em relação ao cenário atual' : results.difference < 0 ? 'Redução estimada em relação ao cenário atual' : 'Sem diferença entre as premissas'}</small><div className="sim-delta">{results.difference > 0 ? <TrendingUp size={16}/> : <TrendingDown size={16}/>} {pct(results.differencePercent)} vs. atual</div></div>
+          <div className="sim-metrics">
+            <article><span>Tributo atual estimado</span><strong>{money(results.currentTax)}</strong><small>Alíquota de {pct(Number(inputs.currentRate))}</small></article>
+            <article><span>CBS + IBS brutos</span><strong>{money(results.grossReformTax)}</strong><small>Alíquota efetiva {pct(results.effectiveReformRate)}</small></article>
+            <article><span>Créditos estimados</span><strong className="credit">{money(results.estimatedCredits)}</strong><small>Compras potencialmente creditáveis</small></article>
+            <article><span>CBS + IBS líquidos</span><strong>{money(results.netReformTax)}</strong><small>Após créditos estimados</small></article>
+          </div>
+          <div className="sim-card sim-margin"><div className="sim-card-head"><div className="sim-icon green"><TrendingUp size={20}/></div><div><h2>Impacto na margem</h2><p>Visão simplificada: faturamento menos compras e tributos estimados.</p></div></div>
+            <div className="sim-bar-row"><span>Atual</span><div className="sim-bar"><i style={{width: `${Math.max(0, Math.min(100, results.estimatedMarginAfterCurrentTax / Math.max(1, Number(inputs.revenue) || 1) * 100))}%`}}/></div><strong>{money(results.estimatedMarginAfterCurrentTax)}</strong></div>
+            <div className="sim-bar-row"><span>CBS / IBS</span><div className="sim-bar reform"><i style={{width: `${Math.max(0, Math.min(100, results.estimatedMarginAfterReformTax / Math.max(1, Number(inputs.revenue) || 1) * 100))}%`}}/></div><strong>{money(results.estimatedMarginAfterReformTax)}</strong></div>
+          </div>
+          <div className="sim-card sim-memory"><div className="sim-card-head"><div className="sim-icon"><FileText size={20}/></div><div><h2>Memória de cálculo</h2><p>Premissas usadas na estimativa exibida.</p></div></div>
+            <div className="sim-formula"><span>Tributo atual</span><code>Faturamento × alíquota atual</code><strong>{money(results.currentTax)}</strong></div>
+            <div className="sim-formula"><span>CBS + IBS brutos</span><code>Faturamento × alíquota efetiva</code><strong>{money(results.grossReformTax)}</strong></div>
+            <div className="sim-formula"><span>Créditos estimados</span><code>Compras × % creditável × alíquota efetiva</code><strong>− {money(results.estimatedCredits)}</strong></div>
+            <div className="sim-formula total"><span>CBS + IBS líquidos</span><code>Tributo bruto − créditos estimados (mínimo zero)</code><strong>{money(results.netReformTax)}</strong></div>
+          </div>
+        </div>
+      </div>
+      <div className="sim-card sim-history"><div className="sim-card-head"><div className="sim-icon"><Clock3 size={20}/></div><div><h2>Histórico de cenários</h2><p>Simulações salvas nesta organização. Selecione uma para carregar suas premissas.</p></div></div>
+        {loading ? <p className="sim-muted">Carregando histórico...</p> : history.length ? <div className="sim-history-list">{history.map(item => <button className="sim-history-item" key={item.id} onClick={() => openScenario(item)} type="button"><span><strong>{item.name}</strong><small>{new Date(item.createdAt).toLocaleString('pt-BR')}</small></span><span><small>CBS/IBS líquidos</small><strong>{money(Number(item.results.netReformTax || 0))}</strong></span><span className={Number(item.results.difference) > 0 ? 'negative' : 'positive'}>{money(Number(item.results.difference || 0))}</span></button>)}</div> : <div className="sim-empty">Nenhum cenário salvo ainda. Preencha as premissas e salve a primeira simulação.</div>}
+      </div>
+    </section>
+  </main>;
+}
+</file>
+
+<file path="reforma-360/frontend/app/xml/page.tsx">
+'use client';
+
+import { ChangeEvent, DragEvent, useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import {
+  ArrowLeft, AlertTriangle, CheckCircle2, Clock3, FileCode2, FileSearch,
+  FileText, FileUp, RefreshCw, Search, ShieldCheck, UploadCloud, X,
+} from 'lucide-react';
+
+type Organization = { id: string; name: string };
+type FiscalItem = { description?: string; ncm?: string | null; cfop?: string | null; total?: string | null };
+type FiscalDocument = {
+  id: string; fileName: string; accessKey: string | null; documentNumber: string | null;
+  series: string | null; documentType?: string; issuerName: string | null; issuerTaxId: string | null;
+  recipientName: string | null; recipientTaxId: string | null; issuedAt: string | null;
+  totalAmount: string | number | null; status: string; warnings: string[] | null;
+  items: FiscalItem[] | null; createdAt: string;
+};
+type ImportResult = { name: string; ok: boolean; message: string };
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? window.localStorage.getItem('reforma360_access_token') : null;
+  const response = await fetch(`${API}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options?.headers || {}) },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Não foi possível concluir a operação.');
+  return data as T;
+}
+const currency = (value: string | number | null) => value == null ? '—' : Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const date = (value: string | null) => value ? new Date(value).toLocaleDateString('pt-BR') : '—';
+const isTextFile = (fileName: string) => fileName.toLowerCase().endsWith('.txt');
+
+export default function XmlPage() {
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [organizationId, setOrganizationId] = useState('');
+  const [documents, setDocuments] = useState<FiscalDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [selected, setSelected] = useState<FiscalDocument | null>(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('ALL');
+  const [results, setResults] = useState<ImportResult[]>([]);
+
+  const load = useCallback(async (orgId?: string) => {
+    setLoading(true); setError('');
+    try {
+      const orgs = await request<Organization[]>('/organizations');
+      setOrganizations(orgs);
+      const active = orgs.find(o => o.id === (orgId || organizationId))?.id || orgs[0]?.id || '';
+      setOrganizationId(active);
+      setDocuments(active ? await request<FiscalDocument[]>(`/fiscal-documents?organizationId=${encodeURIComponent(active)}`) : []);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao carregar documentos.'); }
+    finally { setLoading(false); }
+  }, [organizationId]);
+
+  useEffect(() => { if (!window.localStorage.getItem('reforma360_access_token')) { window.location.href = '/'; return; } void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const importFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (!files.length) return;
+    if (!organizationId) { setError('Selecione uma organização antes de importar.'); return; }
+    const allowed = files.filter(file => /\.(xml|txt)$/i.test(file.name));
+    const rejected = files.filter(file => !/\.(xml|txt)$/i.test(file.name));
+    const initialResults: ImportResult[] = rejected.map(file => ({ name: file.name, ok: false, message: 'Formato não suportado. Use XML ou TXT.' }));
+    setResults(initialResults); setBusy(true); setError(''); setNotice('');
+    let succeeded = 0;
+    for (const file of allowed) {
+      if (file.size > MAX_FILE_SIZE) {
+        initialResults.push({ name: file.name, ok: false, message: 'Arquivo maior que 5 MB.' });
+        setResults([...initialResults]);
+        continue;
+      }
+      try {
+        const content = await file.text();
+        const result = await request<FiscalDocument>('/fiscal-documents/import', {
+          method: 'POST', body: JSON.stringify({ organizationId, fileName: file.name, xml: content }),
+        });
+        succeeded++;
+        initialResults.push({ name: file.name, ok: true, message: isTextFile(file.name) ? 'Texto anexado para revisão.' : result.status === 'REVIEW' ? 'Importado com pontos para revisar.' : 'XML processado.' });
+      } catch (e) {
+        initialResults.push({ name: file.name, ok: false, message: e instanceof Error ? e.message : 'Falha ao importar arquivo.' });
+      }
+      setResults([...initialResults]);
+    }
+    setBusy(false);
+    if (succeeded) setNotice(`${succeeded} de ${allowed.length} arquivo(s) importado(s) com sucesso.`);
+    if (!allowed.length && rejected.length) setError('Nenhum arquivo compatível foi selecionado.');
+    await load(organizationId);
+  };
+
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) void importFiles(files);
+    event.target.value = '';
+  };
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault(); setDragging(false);
+    if (event.dataTransfer.files.length) void importFiles(event.dataTransfer.files);
+  };
+  const filteredDocuments = documents.filter(doc => {
+    const term = search.trim().toLocaleLowerCase('pt-BR');
+    const matchesTerm = !term || [doc.fileName, doc.documentNumber, doc.issuerName, doc.issuerTaxId, doc.recipientName].some(v => v?.toLocaleLowerCase('pt-BR').includes(term));
+    const matchesFilter = filter === 'ALL' || (filter === 'REVIEW' ? doc.status === 'REVIEW' : filter === 'PROCESSED' ? doc.status !== 'REVIEW' : filter === 'TEXT' ? doc.documentType === 'TEXT' : doc.documentType !== 'TEXT');
+    return matchesTerm && matchesFilter;
+  });
+  const totalValue = documents.reduce((sum, doc) => sum + (doc.documentType === 'TEXT' ? 0 : Number(doc.totalAmount || 0)), 0);
+  const reviewCount = documents.filter(doc => doc.status === 'REVIEW').length;
+  const xmlCount = documents.filter(doc => doc.documentType !== 'TEXT').length;
+  const textCount = documents.filter(doc => doc.documentType === 'TEXT').length;
+
+  return <main className="dashboard-shell xml-page">
+    <header className="topbar"><Link href="/" className="brand"><span className="brand-mark">R</span><span>Reforma <b>360</b></span></Link><Link href="/" className="btn btn-light"><ArrowLeft size={16}/> Voltar ao painel</Link></header>
+    <section className="page-content xml-content">
+      <div className="xml-heading"><div><span className="eyebrow">ETAPA 3 · DOCUMENTOS FISCAIS</span><h1>Análise de XML</h1><p>Centralize documentos fiscais, extraia informações da NF-e e organize arquivos de apoio para revisão.</p></div><button className="btn btn-light" onClick={() => void load(organizationId)} disabled={loading || busy}><RefreshCw size={15} className={loading ? 'xml-spin' : ''}/> Atualizar</button></div>
+      {error && <div className="xml-alert xml-alert-error" role="alert"><AlertTriangle size={18}/><span>{error}</span><button aria-label="Fechar aviso" onClick={() => setError('')}><X size={16}/></button></div>}
+      {notice && <div className="xml-alert xml-alert-success" role="status"><CheckCircle2 size={18}/><span>{notice}</span><button aria-label="Fechar aviso" onClick={() => setNotice('')}><X size={16}/></button></div>}
+
+      <div className="xml-orgbar"><div><label htmlFor="xml-org">Organização ativa</label><p>Os documentos são vinculados à organização selecionada.</p></div><select id="xml-org" value={organizationId} onChange={e => { setOrganizationId(e.target.value); void load(e.target.value); }} disabled={busy}><option value="">Selecione uma organização</option>{organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}</select></div>
+
+      <div className="xml-stat-grid">
+        <article className="xml-stat-card"><span className="xml-stat-icon xml-icon-blue"><FileSearch size={19}/></span><div><span>Documentos fiscais</span><strong>{xmlCount}</strong><small>XML importados</small></div></article>
+        <article className="xml-stat-card"><span className="xml-stat-icon xml-icon-violet"><FileText size={19}/></span><div><span>Arquivos de texto</span><strong>{textCount}</strong><small>TXT anexados</small></div></article>
+        <article className="xml-stat-card"><span className="xml-stat-icon xml-icon-amber"><Clock3 size={19}/></span><div><span>Precisam de revisão</span><strong>{reviewCount}</strong><small>Com avisos ou análise manual</small></div></article>
+        <article className="xml-stat-card"><span className="xml-stat-icon xml-icon-green"><ShieldCheck size={19}/></span><div><span>Total dos XML</span><strong>{currency(totalValue)}</strong><small>Soma dos valores importados</small></div></article>
+      </div>
+
+      <section className="xml-upload-card">
+        <div className="xml-section-heading"><div><span className="xml-section-kicker">CENTRAL DE IMPORTAÇÃO</span><h2>Adicione seus arquivos</h2><p>Arraste arquivos para a área abaixo ou selecione no computador.</p></div><span className="xml-heading-file-icon"><UploadCloud size={23}/></span></div>
+        <div className={`xml-dropzone ${dragging ? 'is-dragging' : ''} ${busy ? 'is-busy' : ''}`} onDragEnter={e => { e.preventDefault(); setDragging(true); }} onDragOver={e => e.preventDefault()} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }} onDrop={onDrop}>
+          <div className="xml-upload-symbol"><UploadCloud size={29}/></div><h3>{busy ? 'Importando seus arquivos…' : dragging ? 'Solte os arquivos aqui' : 'Arraste e solte seus arquivos aqui'}</h3><p>Formatos aceitos: <b>.XML</b> para leitura fiscal e <b>.TXT</b> para anexar conteúdo textual.</p>
+          <button type="button" className="btn btn-primary xml-select-button" onClick={() => fileInput.current?.click()} disabled={busy || !organizationId}><FileUp size={16}/>{busy ? 'Processando arquivos…' : 'Selecionar arquivos'}</button>
+          <input ref={fileInput} type="file" multiple accept=".xml,.txt,text/xml,application/xml,text/plain" onChange={onFileChange} disabled={busy || !organizationId} className="xml-hidden-input" />
+          <div className="xml-upload-hints"><span><CheckCircle2 size={14}/> Até 5 MB por arquivo</span><span><ShieldCheck size={14}/> Acesso por organização</span><span><FileCode2 size={14}/> XML de NF-e modelo 55</span></div>
+        </div>
+        {!organizationId && <p className="xml-inline-help">Selecione uma organização para habilitar a importação.</p>}
+        {results.length > 0 && <div className="xml-import-results"><div className="xml-results-title"><strong>Resultado da importação</strong><button className="xml-clear-results" onClick={() => setResults([])}>Limpar</button></div>{results.map((item, index) => <div className="xml-result-row" key={`${item.name}-${index}`}><span className={`xml-result-mark ${item.ok ? 'ok' : 'fail'}`}>{item.ok ? <CheckCircle2 size={16}/> : <AlertTriangle size={16}/>}</span><div className="xml-result-copy"><strong>{item.name}</strong><span>{item.message}</span></div></div>)}</div>}
+        <div className="xml-format-note"><FileText size={17}/><p><b>Sobre arquivos TXT:</b> o conteúdo é armazenado como material de apoio e marcado para revisão manual. A extração automática de campos fiscais é realizada nesta etapa para XML de NF-e.</p></div>
+      </section>
+
+      <section className="xml-documents-card">
+        <div className="xml-section-heading xml-documents-heading"><div><span className="xml-section-kicker">ACERVO DA ORGANIZAÇÃO</span><h2>Documentos importados</h2><p>{filteredDocuments.length} de {documents.length} arquivo(s)</p></div><span className="xml-heading-file-icon"><FileSearch size={22}/></span></div>
+        <div className="xml-toolbar"><label className="xml-search"><Search size={17}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por arquivo, número ou emitente…" /></label><select aria-label="Filtrar documentos" value={filter} onChange={e => setFilter(e.target.value)}><option value="ALL">Todos os arquivos</option><option value="XML">Somente XML</option><option value="TEXT">Somente TXT</option><option value="REVIEW">Precisam de revisão</option><option value="PROCESSED">Processados</option></select></div>
+        {loading ? <div className="xml-empty-state"><RefreshCw size={25} className="xml-spin"/><p>Carregando documentos…</p></div> : !filteredDocuments.length ? <div className="xml-empty-state"><span><FileSearch size={28}/></span><h3>{documents.length ? 'Nenhum resultado encontrado' : 'Sua área de documentos está vazia'}</h3><p>{documents.length ? 'Tente alterar a busca ou o filtro selecionado.' : 'Importe seu primeiro XML ou anexe um arquivo TXT para começar.'}</p></div> : <div className="xml-table-wrap"><table className="xml-table"><thead><tr><th>Arquivo / documento</th><th>Emitente</th><th>Emissão</th><th>Valor</th><th>Situação</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>{filteredDocuments.map(doc => <tr key={doc.id}><td><div className="xml-file-cell"><span className={`xml-file-type ${doc.documentType === 'TEXT' ? 'txt' : 'xml'}`}>{doc.documentType === 'TEXT' ? <FileText size={17}/> : <FileCode2 size={17}/>}</span><div><strong>{doc.documentType === 'TEXT' ? doc.fileName : doc.documentNumber ? `NF-e ${doc.documentNumber}` : doc.fileName}</strong><span>{doc.fileName}</span></div></div></td><td><div className="xml-issuer-cell"><strong>{doc.issuerName || (doc.documentType === 'TEXT' ? 'Arquivo de texto' : 'Não identificado')}</strong><span>{doc.issuerTaxId || (doc.documentType === 'TEXT' ? 'Revisão manual' : 'CNPJ/CPF não identificado')}</span></div></td><td>{date(doc.issuedAt)}</td><td className="xml-value-cell">{doc.documentType === 'TEXT' ? '—' : currency(doc.totalAmount)}</td><td><span className={`xml-status ${doc.status === 'REVIEW' ? 'review' : 'processed'}`}><span/>{doc.status === 'REVIEW' ? 'Revisar' : 'Processado'}</span></td><td><button className="xml-detail-button" onClick={() => setSelected(doc)}>Detalhes <span>→</span></button></td></tr>)}</tbody></table></div>}
+      </section>
+      <p className="xml-disclaimer">A leitura de XML e os avisos são verificações iniciais; não substituem auditoria fiscal nem representam cálculo definitivo de CBS/IBS. Arquivos TXT são anexos para revisão manual.</p>
+    </section>
+
+    {selected && <div className="xml-modal-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) setSelected(null); }}><section role="dialog" aria-modal="true" aria-label="Detalhes do documento" className="xml-detail-modal"><div className="xml-modal-heading"><div><span className="xml-section-kicker">VISUALIZAÇÃO DO ARQUIVO</span><h2>Detalhes do documento</h2><p>{selected.fileName}</p></div><button className="xml-modal-close" onClick={() => setSelected(null)} aria-label="Fechar detalhes"><X size={19}/></button></div><div className="xml-detail-grid"><div><span>Tipo de arquivo</span><strong>{selected.documentType === 'TEXT' ? 'Texto (TXT)' : 'NF-e (XML)'}</strong></div><div><span>Situação</span><strong>{selected.status === 'REVIEW' ? 'Revisão necessária' : 'Processado'}</strong></div><div><span>Número</span><strong>{selected.documentNumber || '—'}</strong></div><div><span>Valor total</span><strong>{selected.documentType === 'TEXT' ? '—' : currency(selected.totalAmount)}</strong></div><div className="wide"><span>Chave de acesso</span><strong className="xml-break-word">{selected.accessKey || 'Não identificada'}</strong></div><div><span>Emitente</span><strong>{selected.issuerName || '—'}</strong></div><div><span>Destinatário</span><strong>{selected.recipientName || '—'}</strong></div></div>{selected.warnings?.length ? <div className="xml-warnings"><h3><AlertTriangle size={17}/> Pontos para revisar</h3><ul>{selected.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div> : <div className="xml-no-warnings"><CheckCircle2 size={17}/> Nenhum aviso básico registrado na leitura.</div>}{selected.documentType !== 'TEXT' && <div className="xml-items-section"><h3>Itens extraídos <span>{selected.items?.length || 0}</span></h3><div className="xml-table-wrap"><table className="xml-table"><thead><tr><th>Produto</th><th>NCM</th><th>CFOP</th><th>Total</th></tr></thead><tbody>{(selected.items || []).map((item, index) => <tr key={index}><td>{item.description || '—'}</td><td>{item.ncm || '—'}</td><td>{item.cfop || '—'}</td><td>{currency(item.total || null)}</td></tr>)}</tbody></table></div></div>}<div className="xml-modal-footer"><button className="btn btn-primary" onClick={() => setSelected(null)}>Concluído</button></div></section></div>}
+  </main>;
+}
+</file>
+
+<file path="reforma-360/frontend/app/globals.css">
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+:root{--bg:#f5f7fb;--panel:#fff;--text:#152033;--muted:#68758a;--line:#e5eaf1;--navy:#142a4a;--blue:#3269d7;--green:#16856b;--amber:#a86a10;--red:#bd4141}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif}button,input,select{font:inherit}a{color:inherit;text-decoration:none}.shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.sidebar{background:#112440;color:#dbe6f6;padding:28px 18px;display:flex;flex-direction:column;gap:30px}.brand{display:flex;align-items:center;gap:11px;padding:0 8px}.brand-mark{height:38px;width:38px;border-radius:12px;background:#fff;color:#17345b;display:grid;place-items:center;font-weight:800;font-family:Manrope,sans-serif}.brand strong{font-family:Manrope,sans-serif;font-size:17px;letter-spacing:-.4px;color:white}.brand small{display:block;color:#9fb1cc;font-size:11px;margin-top:3px}.nav-label{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:#8ea1be;padding:0 11px;margin-bottom:8px}.nav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;font-size:13px;color:#c5d2e5;margin:3px 0}.nav-item.active{background:#263f61;color:#fff}.sidebar-footer{margin-top:auto;border-top:1px solid #2b3d58;padding:18px 8px 0;color:#9fb1cc;font-size:11px;line-height:1.6}.main{min-width:0}.topbar{height:74px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 36px}.crumb{font-size:12px;color:var(--muted)}.top-right{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted)}.avatar{height:34px;width:34px;border-radius:50%;background:#e8eefb;color:#244c91;display:grid;place-items:center;font-weight:700}.content{max-width:1500px;margin:0 auto;padding:34px 36px 48px}.eyebrow{font-size:11px;font-weight:700;color:var(--blue);letter-spacing:1.4px;text-transform:uppercase}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin:8px 0 26px}.page-head h1{font:800 28px Manrope,sans-serif;letter-spacing:-.9px;margin:0 0 8px}.page-head p{color:var(--muted);font-size:13px;margin:0;line-height:1.6}.btn{border:0;border-radius:9px;background:var(--navy);color:#fff;font-size:12px;font-weight:700;padding:12px 16px;cursor:pointer}.btn:disabled{opacity:.5;cursor:not-allowed}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:19px}.stat-top{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}.stat-icon{height:34px;width:34px;border-radius:10px;background:#eef3ff;color:#3768c5;display:grid;place-items:center}.stat-value{font:800 27px Manrope,sans-serif;margin:16px 0 5px;letter-spacing:-.8px}.stat-note{font-size:11px;color:var(--muted)}.section-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(290px,.85fr);gap:16px;margin-top:18px}.card-title{font:700 15px Manrope,sans-serif;margin:0}.card-sub{font-size:11px;color:var(--muted);margin-top:6px}.section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:10px}.link{color:var(--blue);font-size:11px;font-weight:700}.task{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-top:1px solid #eef1f6}.task-icon{height:34px;width:34px;border-radius:10px;background:#fff4e4;color:var(--amber);display:grid;place-items:center;flex-shrink:0}.task-icon.red{background:#fff0ef;color:var(--red)}.task-icon.blue{background:#eef3ff;color:var(--blue)}.task-main{flex:1;min-width:0}.task-main strong{display:block;font-size:12px;margin:1px 0 5px}.task-main span{font-size:11px;color:var(--muted);line-height:1.5}.pill{font-size:10px;font-weight:700;border-radius:99px;padding:5px 8px;background:#fff4e4;color:var(--amber);white-space:nowrap}.pill.red{background:#fff0ef;color:var(--red)}.pill.green{background:#e8f7f1;color:var(--green)}.progress-row{display:flex;justify-content:space-between;font-size:12px;margin:19px 0 9px}.progress-row span:last-child{font-weight:700}.progress{height:7px;border-radius:99px;background:#edf1f7;overflow:hidden}.progress div{height:100%;border-radius:99px;background:var(--blue)}.mini-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}.mini{padding:14px;border:1px solid var(--line);border-radius:11px}.mini strong{display:block;font:700 20px Manrope,sans-serif}.mini span{font-size:10px;color:var(--muted)}.table-card{margin-top:18px}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:530px}th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700;padding:12px 10px;border-bottom:1px solid var(--line)}td{font-size:12px;padding:15px 10px;border-bottom:1px solid #eef1f6}td:first-child{font-weight:600}.empty-note{font-size:12px;color:var(--muted);line-height:1.6;margin-top:18px}.notice{border:1px solid #dce6f8;background:#f0f5ff;border-radius:12px;padding:14px 16px;font-size:11px;line-height:1.6;color:#345078;margin-top:18px}.mobile-menu{display:none}
+@media(max-width:1100px){.shell{grid-template-columns:210px 1fr}.sidebar{padding:24px 12px}.content{padding:28px 22px}.topbar{padding:0 22px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.section-grid{grid-template-columns:1fr}}
+@media(max-width:680px){.shell{display:block}.sidebar{display:none}.topbar{height:62px;padding:0 16px}.content{padding:24px 15px}.page-head{flex-direction:column}.page-head h1{font-size:24px}.top-right .role-label{display:none}.stats{gap:10px}.card{padding:15px}.stat-value{font-size:23px}.stat-top{font-size:11px}.section-grid{gap:12px}.page-head .btn{width:100%}.mini-stats{gap:8px}}
+
+/* Interações do módulo inicial de organizações e empresas */
+.nav-button{width:100%;border:0;background:transparent;text-align:left;cursor:pointer}.disabled-nav{opacity:.65;cursor:not-allowed}.head-actions{display:flex;gap:9px;flex-wrap:wrap}.btn-light{background:#eef2f8;color:#243854}.btn:disabled{opacity:.65;cursor:wait}.workspace-select{display:flex;align-items:center;gap:18px;margin-bottom:16px;padding:15px 18px}.workspace-select>div{flex:1}.workspace-select label{font-size:12px;font-weight:700}.workspace-select p{font-size:11px;color:var(--muted);margin:5px 0 0}.workspace-select select{max-width:420px;min-width:220px}.workspace-select select,.form-stack input,.form-stack select,.search-box input{border:1px solid #dbe2ec;background:#fff;border-radius:9px;padding:11px 12px;color:var(--text);outline:none}.workspace-select select:focus,.form-stack input:focus,.form-stack select:focus,.search-box input:focus{border-color:#6b91e6;box-shadow:0 0 0 3px #3269d71c}.text-button{border:0;background:transparent;color:var(--blue);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:8px}.text-button:hover{text-decoration:underline}.alert{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:10px;margin:0 0 15px;font-size:12px;line-height:1.5}.alert span{flex:1}.error-alert{background:#fff0ef;border:1px solid #f2d0cd;color:#8e3030}.success-alert{background:#e8f7f1;border:1px solid #c8e9dc;color:#126a54}.icon-button{border:0;background:transparent;color:inherit;padding:5px;display:inline-grid;place-items:center;cursor:pointer;border-radius:7px}.icon-button:hover{background:#0000000b}.table-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:-5px 0 12px}.search-box{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding-left:10px;color:var(--muted);max-width:420px;width:100%}.search-box input{border:0;box-shadow:none!important;flex:1;min-width:0;padding:10px 8px}.result-count{font-size:11px;color:var(--muted);white-space:nowrap}.table-empty{text-align:center!important;padding:32px 12px!important;color:var(--muted);font-weight:400!important}.table-empty svg{display:block;margin:0 auto 10px;color:#8292a8}.table-empty strong,.table-empty span{display:block;margin-bottom:7px}.table-empty strong{color:var(--text);font-size:13px}.table-empty span{font-size:11px}.table-empty .btn{margin-top:8px}.tax-id{font-variant-numeric:tabular-nums}.modal-backdrop{position:fixed;inset:0;background:#0c1b30a8;z-index:50;display:flex;align-items:center;justify-content:center;padding:18px;overflow-y:auto}.modal{width:min(100%,560px);background:#fff;border-radius:18px;padding:25px;box-shadow:0 25px 90px #07152a40;max-height:calc(100vh - 36px);overflow-y:auto}.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:22px}.modal-head h2{font:800 22px Manrope,sans-serif;letter-spacing:-.6px;margin:7px 0}.modal-head p{font-size:12px;line-height:1.6;color:var(--muted);margin:0}.close-button{flex-shrink:0}.form-stack{display:flex;flex-direction:column;gap:15px}.form-stack label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700}.form-stack input,.form-stack select{width:100%;font-weight:400}.form-stack small{font-size:10px;color:var(--muted);font-weight:400}.form-row{display:grid;grid-template-columns:1fr 90px;gap:12px}.form-help{border-radius:9px;background:#f4f7fb;padding:11px 12px;font-size:11px;line-height:1.6;color:#596b83}.modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:4px}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.workspace-select{align-items:stretch;flex-direction:column;gap:10px}.workspace-select select{max-width:none;min-width:0;width:100%}.workspace-select .text-button{justify-content:flex-start}.head-actions{width:100%}.head-actions .btn{flex:1}.table-toolbar{align-items:stretch;flex-direction:column}.search-box{max-width:none}.result-count{align-self:flex-end}.modal{padding:20px}.form-row{grid-template-columns:minmax(0,1fr) 80px}}
+
+/* Autenticação Reforma 360 v0.3.0 */
+.auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px 16px;background:radial-gradient(circle at top left,rgba(59,130,246,.10),transparent 34%),#f5f7fb;color:#172033}
+.auth-card{width:100%;max-width:480px;background:#fff;border:1px solid #e4e9f1;border-radius:22px;padding:32px;box-shadow:0 20px 60px rgba(28,42,70,.09)}
+.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:34px}.auth-brand strong{display:block;font-size:20px;letter-spacing:-.6px}.auth-brand small{display:block;font-size:9px;letter-spacing:1.4px;color:#778197;margin-top:3px}
+.auth-card h1{font-size:30px;line-height:1.2;letter-spacing:-1px;margin:8px 0}.auth-description{font-size:14px;color:#69758a;line-height:1.6;margin:0 0 22px}.auth-submit{width:100%;justify-content:center;margin-top:8px;min-height:44px}.auth-switch{text-align:center;color:#68758a;font-size:13px;margin-top:20px}.auth-switch button{border:0;background:none;color:#2456c7;font-weight:700;cursor:pointer;padding:4px 5px}.auth-safety{display:flex;align-items:center;justify-content:center;gap:7px;color:#778197;font-size:11px;margin-top:22px}.auth-loading{min-height:100vh;display:grid;place-items:center;color:#667085;background:#f5f7fb;font:14px system-ui,sans-serif}
+@media(max-width:520px){.auth-card{padding:24px 20px;border-radius:16px}.auth-card h1{font-size:26px}.auth-brand{margin-bottom:28px}}
+
+
+/* Reforma 360 — Checklist de adequação (Etapa 2) */
+.checklist-page{max-width:1320px;margin:0 auto;padding:34px 32px 48px;color:#172033}
+.checklist-header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:26px}
+.checklist-back{display:inline-flex;align-items:center;gap:7px;color:#64748b;text-decoration:none;font-size:13px;margin-bottom:22px}
+.checklist-back:hover{color:#2563eb}
+.checklist-title-row{display:flex;align-items:center;gap:14px}
+.checklist-mark{width:48px;height:48px;border-radius:14px;background:#eaf1ff;color:#315bd6;display:grid;place-items:center;flex-shrink:0}
+.checklist-title-row h1{font-size:27px;line-height:1.2;margin:0 0 7px;font-weight:750;letter-spacing:-.6px}
+.checklist-title-row p{margin:0;color:#64748b;font-size:14px}
+.checklist-actions{display:flex;gap:10px;flex-wrap:wrap}
+.checklist-actions .btn,.checklist-form-actions .btn,.checklist-empty .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.checklist-orgbar{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:18px 20px;background:#fff;border:1px solid #e5eaf2;border-radius:14px;margin-bottom:20px}
+.checklist-orgbar>div{display:grid;gap:5px}.checklist-orgbar strong{font-size:15px}.eyebrow{font-size:10px;letter-spacing:1px;font-weight:750;color:#7b8799}
+.checklist-orgbar select,.checklist-toolbar select,.checklist-form select,.checklist-form input,.checklist-form textarea,.checklist-item-controls select{min-height:40px;border:1px solid #dbe2ec;border-radius:9px;background:#fff;padding:9px 11px;color:#273449;font:inherit;font-size:13px;max-width:100%}
+.checklist-orgbar select{min-width:230px}
+.checklist-error{padding:13px 15px;border:1px solid #fecaca;background:#fff1f2;color:#b42318;border-radius:10px;margin:0 0 18px;font-size:13px}
+.checklist-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px}
+.checklist-stats article{background:#fff;border:1px solid #e5eaf2;border-radius:14px;padding:19px 20px;display:grid;gap:7px}
+.checklist-stats span{font-size:12px;color:#64748b;font-weight:600}.checklist-stats strong{font-size:28px;line-height:1.1;letter-spacing:-.7px}.checklist-stats small{font-size:11px;color:#94a3b8}
+.checklist-form-card,.checklist-list-card{background:#fff;border:1px solid #e5eaf2;border-radius:15px;padding:22px;margin-bottom:20px}
+.checklist-section-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}
+.checklist-section-heading h2{font-size:17px;margin:0 0 5px;letter-spacing:-.2px}.checklist-section-heading p{font-size:12px;color:#64748b;margin:0}
+.checklist-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.checklist-form label,.checklist-item-controls label{display:grid;gap:7px;font-size:12px;font-weight:650;color:#475569;min-width:0}
+.checklist-form .span-2{grid-column:span 2}.checklist-form input,.checklist-form select,.checklist-form textarea{width:100%;box-sizing:border-box}.checklist-form textarea{resize:vertical}
+.checklist-form-actions{display:flex;justify-content:flex-end;gap:10px;padding-top:3px}
+.checklist-toolbar{display:flex;justify-content:space-between;gap:12px;margin-bottom:16px}.checklist-search{display:flex;align-items:center;gap:9px;flex:1;max-width:460px;border:1px solid #dbe2ec;border-radius:9px;padding:0 12px;color:#94a3b8}.checklist-search input{width:100%;min-width:0;border:0;outline:0;min-height:40px;font:inherit;font-size:13px;background:transparent}
+.checklist-total{font-size:12px;color:#64748b;background:#f1f5f9;border-radius:8px;padding:7px 10px;white-space:nowrap}
+.checklist-items{display:grid;gap:10px}.checklist-item{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:17px;border:1px solid #e7ecf3;border-radius:12px}.checklist-item.status-completed{background:#fbfdfc}
+.checklist-item-main{min-width:0;flex:1}.checklist-item-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}.priority-dot{width:7px;height:7px;border-radius:50%;background:#94a3b8}.priority-high{background:#dc2626}.priority-medium{background:#d97706}.priority-low{background:#16a34a}
+.checklist-category{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.55px;font-weight:750}.checklist-priority{font-size:10px;padding:3px 7px;border-radius:6px;background:#f1f5f9;color:#475569}.priority-label-high{background:#fff1f2;color:#be123c}.priority-label-medium{background:#fff7ed;color:#c2410c}.priority-label-low{background:#f0fdf4;color:#15803d}
+.checklist-item h3{font-size:14px;margin:0 0 6px;font-weight:700}.checklist-item p{font-size:12px;line-height:1.55;color:#64748b;margin:0 0 10px;white-space:pre-wrap}
+.checklist-meta{display:flex;gap:8px 16px;flex-wrap:wrap;font-size:11px;color:#7b8799}.checklist-meta a{color:#315bd6;text-decoration:none}
+.checklist-item-controls{display:flex;align-items:flex-end;gap:10px;flex-shrink:0}.checklist-item-controls select{min-width:132px}.checklist-delete{width:38px;height:40px;border:1px solid #fee2e2;border-radius:9px;background:#fff;color:#b91c1c;display:grid;place-items:center;cursor:pointer}.checklist-delete:hover{background:#fff1f2}
+.checklist-empty{padding:40px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;color:#64748b;font-size:13px}.checklist-empty h2,.checklist-empty h3{margin:0;color:#172033;font-size:16px}.checklist-empty p{max-width:500px;margin:0 0 8px;line-height:1.6}.checklist-empty svg{color:#94a3b8}
+.checklist-footer{text-align:center;color:#94a3b8;font-size:11px;padding:10px}
+@media(max-width:850px){.checklist-page{padding:24px 18px 36px}.checklist-header{align-items:flex-start;flex-direction:column}.checklist-actions{width:100%}.checklist-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.checklist-item{flex-direction:column}.checklist-item-controls{width:100%;align-items:flex-end}.checklist-item-controls label{flex:1}.checklist-item-controls select{width:100%}}
+@media(max-width:560px){.checklist-page{padding:18px 12px 28px}.checklist-title-row h1{font-size:22px}.checklist-title-row p{font-size:12px;line-height:1.5}.checklist-orgbar{align-items:stretch;flex-direction:column}.checklist-orgbar select{width:100%;min-width:0}.checklist-stats{gap:9px}.checklist-stats article{padding:14px}.checklist-stats strong{font-size:24px}.checklist-form-card,.checklist-list-card{padding:15px}.checklist-form{grid-template-columns:1fr;gap:13px}.checklist-form .span-2{grid-column:span 1}.checklist-toolbar{flex-direction:column}.checklist-search{max-width:none}.checklist-toolbar select{width:100%}.checklist-item-controls{align-items:flex-end}.checklist-meta{gap:8px 12px}}
+
+/* Reforma 360 — Análise de XML: interface responsiva e área de importação */
+.xml-content{max-width:1440px;margin:0 auto;padding-bottom:42px}
+.xml-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:25px}
+.xml-heading h1{font-size:clamp(27px,3vw,34px);line-height:1.15;letter-spacing:-1px;margin:8px 0 9px;color:#142033}
+.xml-heading p{font-size:14px;line-height:1.6;color:#64748b;margin:0;max-width:690px}
+.xml-heading>.btn{flex-shrink:0}
+.xml-spin{animation:xml-spin 1.1s linear infinite}@keyframes xml-spin{to{transform:rotate(360deg)}}
+.xml-alert{display:flex;align-items:center;gap:10px;padding:13px 15px;border:1px solid;border-radius:11px;font-size:13px;margin-bottom:17px}
+.xml-alert span{flex:1;min-width:0}.xml-alert button{display:grid;place-items:center;border:0;background:transparent;color:inherit;cursor:pointer;padding:3px}
+.xml-alert-error{background:#fff4f4;border-color:#fecaca;color:#b42318}.xml-alert-success{background:#effaf3;border-color:#bbf7d0;color:#166534}
+.xml-orgbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:17px 20px;background:#fff;border:1px solid #e5eaf2;border-radius:14px;margin-bottom:19px;box-shadow:0 2px 7px rgba(15,23,42,.025)}
+.xml-orgbar label{font-size:13px;font-weight:750;color:#1e293b}.xml-orgbar p{font-size:12px;color:#748094;margin:5px 0 0}.xml-orgbar select{width:min(100%,390px);min-width:230px;min-height:42px;border:1px solid #dbe2ec;border-radius:9px;padding:0 12px;background:#fff;color:#243247;font:inherit;font-size:13px}
+.xml-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.xml-stat-card{display:flex;align-items:center;gap:13px;padding:19px 18px;background:#fff;border:1px solid #e5eaf2;border-radius:14px;min-width:0;box-shadow:0 2px 7px rgba(15,23,42,.025)}
+.xml-stat-icon{width:43px;height:43px;flex:0 0 43px;border-radius:12px;display:grid;place-items:center}.xml-icon-blue{background:#edf4ff;color:#315fca}.xml-icon-violet{background:#f4efff;color:#7951c8}.xml-icon-amber{background:#fff5e7;color:#b97717}.xml-icon-green{background:#eaf8f0;color:#198754}
+.xml-stat-card>div{display:grid;gap:3px;min-width:0}.xml-stat-card>div>span{font-size:11px;color:#657287;font-weight:650}.xml-stat-card strong{font-size:25px;line-height:1.15;letter-spacing:-.65px;color:#172337;overflow-wrap:anywhere}.xml-stat-card small{font-size:10px;color:#96a0b0;line-height:1.4}
+.xml-upload-card,.xml-documents-card{background:#fff;border:1px solid #e5eaf2;border-radius:16px;padding:23px;margin-bottom:19px;box-shadow:0 3px 12px rgba(15,23,42,.025)}
+.xml-section-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:19px}.xml-section-kicker{display:block;font-size:10px;font-weight:800;letter-spacing:1.15px;color:#687994;margin-bottom:7px}.xml-section-heading h2{font-size:18px;letter-spacing:-.35px;margin:0 0 6px;color:#182438}.xml-section-heading p{font-size:12px;line-height:1.55;color:#788497;margin:0}.xml-heading-file-icon{width:43px;height:43px;display:grid;place-items:center;flex-shrink:0;border-radius:12px;background:#edf4ff;color:#315fca}
+.xml-dropzone{border:1.5px dashed #c5d3e6;border-radius:14px;background:linear-gradient(180deg,#fbfdff,#f8faff);padding:29px 18px 22px;text-align:center;transition:border-color .18s,background .18s,box-shadow .18s}.xml-dropzone.is-dragging{border-color:#3867d6;background:#eff5ff;box-shadow:inset 0 0 0 2px rgba(56,103,214,.08)}.xml-dropzone.is-busy{opacity:.75}.xml-upload-symbol{width:56px;height:56px;margin:0 auto 13px;display:grid;place-items:center;border-radius:16px;background:#eaf1ff;color:#315fca}.xml-dropzone h3{font-size:16px;color:#1d2a3e;letter-spacing:-.25px;margin:0 0 8px}.xml-dropzone>p{font-size:12px;color:#7b8799;margin:0 0 17px;line-height:1.6}.xml-dropzone>p b{color:#475569}.xml-select-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 17px}.xml-hidden-input{display:none}.xml-upload-hints{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:9px 22px;margin-top:20px}.xml-upload-hints span{display:inline-flex;align-items:center;gap:6px;color:#778398;font-size:10px}.xml-upload-hints svg{color:#56816c}.xml-inline-help{font-size:12px;color:#9a6411;margin:10px 0 0}
+.xml-import-results{margin-top:17px;border:1px solid #e6ebf2;border-radius:11px;overflow:hidden}.xml-results-title{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:#f8fafc;border-bottom:1px solid #e6ebf2;font-size:12px;color:#334155}.xml-clear-results{border:0;background:transparent;color:#315fca;font-size:11px;font-weight:700;cursor:pointer}.xml-result-row{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border-bottom:1px solid #eef1f5}.xml-result-row:last-child{border-bottom:0}.xml-result-mark{display:grid;place-items:center;margin-top:2px}.xml-result-mark.ok{color:#16834a}.xml-result-mark.fail{color:#c2413b}.xml-result-copy{display:grid;gap:3px;min-width:0}.xml-result-copy strong{font-size:12px;color:#273449;overflow-wrap:anywhere}.xml-result-copy span{font-size:11px;color:#758196;line-height:1.5}.xml-format-note{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;margin-top:15px;border-radius:10px;background:#f7f9fc;color:#6b778b}.xml-format-note svg{flex-shrink:0;margin-top:1px;color:#687d9b}.xml-format-note p{font-size:11px;line-height:1.6;margin:0}.xml-format-note b{color:#43516a}
+.xml-documents-heading{margin-bottom:18px}.xml-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px}.xml-search{display:flex;align-items:center;gap:9px;flex:1;min-width:0;max-width:520px;height:41px;padding:0 12px;border:1px solid #dce3ec;border-radius:9px;color:#8b97a8}.xml-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;font:inherit;font-size:12px;color:#243247}.xml-search input::placeholder{color:#9aa4b4}.xml-toolbar>select{min-height:41px;max-width:100%;padding:0 30px 0 11px;border:1px solid #dce3ec;border-radius:9px;background:#fff;font:inherit;font-size:12px;color:#48566b}
+.xml-table-wrap{width:100%;overflow-x:auto;border:1px solid #e8edf3;border-radius:11px}.xml-table{width:100%;min-width:800px;border-collapse:separate;border-spacing:0;text-align:left}.xml-table thead th{padding:12px 14px;background:#f8fafc;color:#758196;font-size:10px;font-weight:750;letter-spacing:.3px;text-transform:uppercase;border-bottom:1px solid #e7ecf3;white-space:nowrap}.xml-table tbody td{padding:13px 14px;border-bottom:1px solid #edf0f5;font-size:12px;color:#4e5b6f;vertical-align:middle}.xml-table tbody tr:last-child td{border-bottom:0}.xml-table tbody tr:hover td{background:#fbfcfe}.xml-file-cell{display:flex;align-items:center;gap:10px;min-width:180px}.xml-file-type{width:36px;height:39px;flex-shrink:0;display:grid;place-items:center;border-radius:9px}.xml-file-type.xml{background:#edf4ff;color:#315fca}.xml-file-type.txt{background:#f4efff;color:#7951c8}.xml-file-cell>div,.xml-issuer-cell{display:grid;gap:4px;min-width:0}.xml-file-cell strong,.xml-issuer-cell strong{font-size:12px;font-weight:700;color:#263348;max-width:230px;overflow-wrap:anywhere}.xml-file-cell span,.xml-issuer-cell span{font-size:10px;color:#8994a5;max-width:230px;overflow-wrap:anywhere}.xml-value-cell{white-space:nowrap;font-weight:750;color:#253449!important}.xml-status{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:20px;font-size:10px;font-weight:750;white-space:nowrap}.xml-status>span{width:6px;height:6px;border-radius:50%;background:currentColor}.xml-status.review{background:#fff5e5;color:#a56812}.xml-status.processed{background:#eaf8f0;color:#198754}.xml-detail-button{border:1px solid #dce4ef;background:#fff;border-radius:8px;padding:7px 10px;color:#315fca;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}.xml-detail-button:hover{background:#f3f7ff;border-color:#b8c9ec}.xml-detail-button span{margin-left:5px}.xml-empty-state{min-height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;text-align:center;color:#8b97a8;padding:25px 15px}.xml-empty-state>span{width:52px;height:52px;border-radius:15px;background:#f1f5fa;display:grid;place-items:center;color:#8090a7}.xml-empty-state h3{font-size:14px;color:#354258;margin:3px 0 0}.xml-empty-state p{font-size:12px;line-height:1.6;margin:0}.xml-disclaimer{text-align:center;color:#9aa3b1;font-size:10px;line-height:1.6;margin:5px auto 0;max-width:900px}
+.xml-modal-backdrop{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.48);overflow-y:auto}.xml-detail-modal{width:min(760px,100%);max-height:calc(100vh - 40px);overflow-y:auto;background:#fff;border-radius:17px;padding:23px;box-shadow:0 24px 80px rgba(15,23,42,.25)}.xml-modal-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding-bottom:17px;border-bottom:1px solid #edf0f5}.xml-modal-heading h2{font-size:21px;color:#1b273b;margin:0 0 6px}.xml-modal-heading p{font-size:12px;color:#778398;margin:0;overflow-wrap:anywhere}.xml-modal-close{display:grid;place-items:center;width:36px;height:36px;border:1px solid #e1e7ef;border-radius:9px;background:#fff;color:#5b687c;cursor:pointer}.xml-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 15px;margin:4px 0 17px}.xml-detail-grid>div{display:grid;gap:5px;padding:13px 0;border-bottom:1px solid #f0f2f6;min-width:0}.xml-detail-grid>div.wide{grid-column:1/-1}.xml-detail-grid span{font-size:10px;color:#8490a1;font-weight:650}.xml-detail-grid strong{font-size:12px;color:#2d3a4f;overflow-wrap:anywhere}.xml-break-word{word-break:break-all}.xml-warnings{padding:13px 14px;background:#fff8eb;border:1px solid #f8e6bf;border-radius:10px;color:#8a5b11;margin:12px 0}.xml-warnings h3{display:flex;align-items:center;gap:7px;font-size:12px;margin:0 0 8px}.xml-warnings ul{padding-left:20px;margin:0;display:grid;gap:6px}.xml-warnings li{font-size:11px;line-height:1.55}.xml-no-warnings{display:flex;align-items:center;gap:8px;padding:12px;border-radius:9px;background:#effaf3;color:#28764b;font-size:11px;margin:12px 0}.xml-items-section{margin-top:18px}.xml-items-section h3{display:flex;align-items:center;gap:8px;font-size:13px;color:#263348;margin:0 0 10px}.xml-items-section h3 span{display:grid;place-items:center;min-width:22px;height:22px;padding:0 5px;background:#edf2fa;color:#5d6c82;border-radius:7px;font-size:10px}.xml-items-section .xml-table{min-width:480px}.xml-modal-footer{display:flex;justify-content:flex-end;margin-top:20px;padding-top:15px;border-top:1px solid #edf0f5}
+@media(max-width:1000px){.xml-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.xml-stat-card{padding:16px}.xml-stat-card strong{font-size:23px}}
+@media(max-width:650px){.xml-content{padding:20px 13px 30px}.xml-heading{align-items:flex-start;flex-direction:column;gap:13px;margin-bottom:19px}.xml-heading>.btn{align-self:flex-start}.xml-heading h1{font-size:26px}.xml-heading p{font-size:12px}.xml-orgbar{align-items:stretch;flex-direction:column;padding:15px;gap:12px}.xml-orgbar select{width:100%;min-width:0}.xml-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.xml-stat-card{align-items:flex-start;flex-direction:column;gap:10px;padding:13px}.xml-stat-icon{width:36px;height:36px;flex-basis:36px;border-radius:10px}.xml-stat-card strong{font-size:21px}.xml-stat-card>div>span{font-size:10px}.xml-stat-card small{font-size:9px}.xml-upload-card,.xml-documents-card{padding:15px;border-radius:13px}.xml-section-heading h2{font-size:16px}.xml-section-heading p{font-size:11px}.xml-heading-file-icon{width:38px;height:38px}.xml-dropzone{padding:24px 12px 17px}.xml-dropzone h3{font-size:14px;line-height:1.5}.xml-dropzone>p{font-size:11px}.xml-upload-hints{align-items:flex-start;flex-direction:column;gap:9px;width:max-content;max-width:100%;margin:18px auto 0}.xml-toolbar{align-items:stretch;flex-direction:column}.xml-search{max-width:none;flex:none}.xml-toolbar>select{width:100%}.xml-detail-modal{padding:16px;border-radius:13px;max-height:calc(100vh - 24px)}.xml-modal-backdrop{padding:12px}.xml-modal-heading h2{font-size:18px}.xml-detail-grid{gap:0 11px}.xml-detail-grid>div{padding:10px 0}.xml-detail-grid strong{font-size:11px}.xml-table tbody td{padding:11px 10px}}
+@media(max-width:380px){.xml-stat-grid{grid-template-columns:1fr}.xml-stat-card{flex-direction:row;align-items:center}.xml-detail-grid{grid-template-columns:1fr}.xml-detail-grid>div.wide{grid-column:auto}}
+
+
+/* Etapa 4 — Simulador CBS/IBS */
+.sim-content{max-width:1500px}.sim-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin:8px 0 24px}.sim-heading h1{font:800 30px Manrope,sans-serif;letter-spacing:-1px;margin:7px 0}.sim-heading p{color:var(--muted);font-size:13px;margin:0;line-height:1.6}.sim-live{display:flex;align-items:center;gap:8px;background:#e8f7f1;color:#16765e;padding:9px 12px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}.sim-live span{width:7px;height:7px;border-radius:50%;background:#1b9a75}.sim-warning{display:flex;align-items:flex-start;gap:12px;padding:15px 17px;border:1px solid #f0dfb5;background:#fff9e9;color:#78581a;border-radius:13px;margin-bottom:18px}.sim-warning>svg{flex-shrink:0;margin-top:2px}.sim-warning strong{font-size:12px}.sim-warning p{font-size:11px;line-height:1.6;margin:5px 0 0}.sim-layout{display:grid;grid-template-columns:minmax(320px,.85fr) minmax(0,1.15fr);align-items:start;gap:18px}.sim-card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:20px;min-width:0}.sim-card-head{display:flex;align-items:center;gap:12px;margin-bottom:19px}.sim-card-head h2{font:750 15px Manrope,sans-serif;margin:0 0 5px}.sim-card-head p{font-size:11px;color:var(--muted);line-height:1.5;margin:0}.sim-icon{width:40px;height:40px;display:grid;place-items:center;flex-shrink:0;border-radius:12px;background:#edf3ff;color:#3269d7}.sim-icon.green{background:#e6f7f0;color:#16856b}.sim-label{display:flex;flex-direction:column;gap:7px;font-size:11px;font-weight:700;color:#38465b;margin-bottom:15px}.sim-label input,.sim-label select{width:100%;min-width:0;border:1px solid #dce3ed;border-radius:9px;padding:11px 12px;color:var(--text);background:#fff;font-size:12px;outline:none}.sim-label input:focus,.sim-label select:focus{border-color:#6e91de;box-shadow:0 0 0 3px #3269d71a}.sim-label small{font-size:10px;font-weight:400;line-height:1.45;color:var(--muted)}.sim-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}.sim-input-wrap{display:flex;align-items:center;border:1px solid #dce3ed;border-radius:9px;overflow:hidden}.sim-input-wrap:focus-within{border-color:#6e91de;box-shadow:0 0 0 3px #3269d71a}.sim-input-wrap input{border:0;border-radius:0;box-shadow:none!important}.sim-input-wrap>span{font-size:10px;color:var(--muted);padding:0 10px;white-space:nowrap}.sim-save{display:flex;justify-content:center;align-items:center;gap:9px;width:100%;padding:13px}.sim-results{display:grid;gap:15px;min-width:0}.sim-result-hero{padding:22px;border-radius:15px;background:linear-gradient(125deg,#142a4a,#234775);color:white;display:flex;flex-direction:column;align-items:flex-start}.sim-result-hero>span{font-size:12px;color:#d0dced}.sim-result-hero>strong{font:800 32px Manrope,sans-serif;letter-spacing:-.8px;margin:10px 0 5px}.sim-result-hero>strong.negative{color:#ffc5bd}.sim-result-hero>strong.positive{color:#a8f0d3}.sim-result-hero>small{font-size:11px;color:#d0dced}.sim-delta{display:flex;align-items:center;gap:6px;margin-top:15px;border:1px solid #ffffff2a;background:#ffffff12;border-radius:99px;padding:7px 10px;font-size:11px}.sim-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sim-metrics article{padding:17px;border:1px solid var(--line);background:#fff;border-radius:13px;min-width:0}.sim-metrics article>span{display:block;font-size:11px;color:var(--muted);line-height:1.4}.sim-metrics article strong{display:block;font:800 21px Manrope,sans-serif;letter-spacing:-.4px;margin:10px 0 5px;overflow-wrap:anywhere}.sim-metrics article strong.credit{color:#16856b}.sim-metrics article small{font-size:10px;color:var(--muted);line-height:1.4}.sim-margin{padding-bottom:17px}.sim-bar-row{display:grid;grid-template-columns:80px minmax(30px,1fr) auto;align-items:center;gap:12px;margin:15px 0;font-size:11px}.sim-bar-row>strong{font-size:11px;white-space:nowrap}.sim-bar{height:8px;background:#edf1f7;border-radius:99px;overflow:hidden}.sim-bar i{display:block;height:100%;border-radius:99px;background:#3269d7}.sim-bar.reform i{background:#16856b}.sim-formula{display:grid;grid-template-columns:minmax(100px,.75fr) minmax(120px,1.4fr) auto;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #eef1f6}.sim-formula span{font-size:11px;font-weight:700}.sim-formula code{font-family:'DM Sans',sans-serif;font-size:10px;line-height:1.5;color:var(--muted)}.sim-formula strong{font-size:12px;white-space:nowrap}.sim-formula.total{border-top:1px solid #dfe6f0}.sim-formula.total strong{color:#234f9b}.sim-history{margin-top:18px}.sim-history-list{display:grid;gap:8px}.sim-history-item{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:18px;text-align:left;border:1px solid #e8edf4;background:#fff;border-radius:11px;padding:13px 14px;cursor:pointer;color:var(--text)}.sim-history-item:hover{border-color:#9bb4e9;background:#f8faff}.sim-history-item span{display:flex;flex-direction:column;gap:5px;min-width:0}.sim-history-item strong{font-size:12px;overflow-wrap:anywhere}.sim-history-item small{font-size:10px;color:var(--muted)}.sim-history-item .negative{color:#b34b43}.sim-history-item .positive{color:#16856b}.sim-empty,.sim-muted{font-size:12px;color:var(--muted);padding:15px 0}.sim-alert{display:flex;gap:9px;align-items:center;border-radius:10px;padding:12px 14px;font-size:12px;margin:12px 0}.sim-alert.error{background:#fff0ef;color:#a93636}.sim-alert.success{background:#e8f7f1;color:#16765e}
+@media(max-width:1050px){.sim-layout{grid-template-columns:1fr}.sim-results{grid-template-columns:1fr 1fr}.sim-result-hero,.sim-margin,.sim-memory{grid-column:span 2}}
+@media(max-width:680px){.sim-heading{flex-direction:column}.sim-heading h1{font-size:25px}.sim-live{align-self:flex-start}.sim-layout{display:block}.sim-results{display:grid;grid-template-columns:1fr;margin-top:14px}.sim-result-hero,.sim-margin,.sim-memory{grid-column:auto}.sim-card{padding:15px}.sim-field-grid{grid-template-columns:1fr}.sim-metrics{gap:9px}.sim-metrics article{padding:13px}.sim-metrics article strong{font-size:18px}.sim-formula{grid-template-columns:1fr auto;gap:5px 10px}.sim-formula code{grid-column:1/-1;grid-row:2}.sim-formula strong{grid-column:2;grid-row:1}.sim-history-item{grid-template-columns:minmax(0,1fr) auto;gap:9px}.sim-history-item>span:last-child{grid-column:2;grid-row:2}.sim-bar-row{grid-template-columns:68px minmax(20px,1fr);gap:8px}.sim-bar-row>strong{grid-column:2}.sim-result-hero>strong{font-size:28px}}
+</file>
+
+<file path="reforma-360/frontend/app/layout.tsx">
+import type { Metadata } from 'next';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Reforma 360 | Gestão da Reforma Tributária',
+  description: 'Plataforma integrada de preparação e acompanhamento da Reforma Tributária.',
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <html lang="pt-BR"><body>{children}</body></html>;
+}
+</file>
+
+<file path="reforma-360/frontend/app/page.tsx">
+'use client';
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { Activity, Bell, Building2, Calculator, CheckCircle2, ChevronRight, CircleHelp, ClipboardCheck, FileCheck2, FileSearch, Files, Gauge, LayoutDashboard, ListTodo, LockKeyhole, Plus, Settings2, ShieldAlert, Users, WalletCards, X, RefreshCw, Search, LogOut, ShieldCheck } from 'lucide-react';
+
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+type ApiHealth = { status: string; service: string; version: string };
+type Organization = { id: string; name: string; type: 'ACCOUNTING_FIRM' | 'COMPANY' | 'TAX_DEPARTMENT'; createdAt: string };
+type Company = { id: string; organizationId: string; name: string; taxId: string; taxRegime: string; state?: string | null; city?: string | null; createdAt: string };
+type Modal = 'organization' | 'company' | null;
+type AuthMode = 'login' | 'register';
+
+const organizationTypes = [
+  { value: 'ACCOUNTING_FIRM', label: 'Escritório contábil' },
+  { value: 'COMPANY', label: 'Empresa' },
+  { value: 'TAX_DEPARTMENT', label: 'Departamento fiscal' },
+];
+const taxRegimes = [
+  { value: 'NAO_INFORMADO', label: 'Não informado' },
+  { value: 'SIMPLES_NACIONAL', label: 'Simples Nacional' },
+  { value: 'LUCRO_PRESUMIDO', label: 'Lucro Presumido' },
+  { value: 'LUCRO_REAL', label: 'Lucro Real' },
+];
+const organizationLabel = (value: Organization['type']) => organizationTypes.find(x => x.value === value)?.label || value;
+const regimeLabel = (value: string) => taxRegimes.find(x => x.value === value)?.label || value;
+
+async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? window.localStorage.getItem('reforma360_access_token') : null;
+  const response = await fetch(`${API}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options?.headers || {}) },
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message;
+    throw new Error(message || `Erro na solicitação (${response.status}).`);
+  }
+  return body as T;
+}
+
+export default function Home() {
+  const [apiStatus, setApiStatus] = useState<'checking'|'online'|'offline'>('checking');
+  const [authReady, setAuthReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('register');
+  const [authName, setAuthName] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authOrgName, setAuthOrgName] = useState('');
+  const [authOrgType, setAuthOrgType] = useState<Organization['type']>('ACCOUNTING_FIRM');
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [health, setHealth] = useState<ApiHealth | null>(null);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [organizationId, setOrganizationId] = useState('');
+  const [modal, setModal] = useState<Modal>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [search, setSearch] = useState('');
+  const [orgName, setOrgName] = useState('');
+  const [orgType, setOrgType] = useState<Organization['type']>('ACCOUNTING_FIRM');
+  const [companyName, setCompanyName] = useState('');
+  const [taxId, setTaxId] = useState('');
+  const [taxRegime, setTaxRegime] = useState('NAO_INFORMADO');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+
+  const selectedOrganization = organizations.find(o => o.id === organizationId);
+  const filteredCompanies = useMemo(() => companies.filter(c => `${c.name} ${c.taxId} ${c.city || ''} ${c.state || ''}`.toLowerCase().includes(search.toLowerCase())), [companies, search]);
+
+  const loadOrganizations = useCallback(async () => {
+    const data = await apiRequest<Organization[]>('/organizations');
+    setOrganizations(data);
+    setOrganizationId(current => data.some(o => o.id === current) ? current : (data[0]?.id || ''));
+    return data;
+  }, []);
+
+  const loadCompanies = useCallback(async (id: string) => {
+    if (!id) { setCompanies([]); return; }
+    const data = await apiRequest<Company[]>(`/companies?organizationId=${encodeURIComponent(id)}`);
+    setCompanies(data);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const status = await apiRequest<ApiHealth>('/health');
+      setHealth(status); setApiStatus('online');
+      const orgs = await loadOrganizations();
+      const activeId = orgs.find(o => o.id === organizationId)?.id || orgs[0]?.id || '';
+      await loadCompanies(activeId);
+    } catch (e) {
+      setApiStatus('offline'); setError(e instanceof Error ? e.message : 'Não foi possível carregar os dados.');
+    } finally { setLoading(false); }
+  }, [loadOrganizations, loadCompanies, organizationId]);
+
+  useEffect(() => {
+    const token = window.localStorage.getItem('reforma360_access_token');
+    setAuthenticated(Boolean(token));
+    setAuthReady(true);
+  }, []);
+  useEffect(() => { if (authReady && authenticated) void refresh(); }, [authReady, authenticated]);
+  useEffect(() => {
+    if (!organizationId || apiStatus !== 'online') { setCompanies([]); return; }
+    let active = true;
+    apiRequest<Company[]>(`/companies?organizationId=${encodeURIComponent(organizationId)}`)
+      .then(data => { if (active) setCompanies(data); })
+      .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Erro ao listar empresas.'); });
+    return () => { active = false; };
+  }, [organizationId, apiStatus]);
+
+  async function submitOrganization(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setSaving(true); setError(''); setSuccess('');
+    try {
+      const created = await apiRequest<Organization>('/organizations', { method: 'POST', body: JSON.stringify({ name: orgName.trim(), type: orgType }) });
+      const all = await loadOrganizations();
+      setOrganizationId(created.id);
+      setCompanies([]);
+      setOrgName(''); setOrgType('ACCOUNTING_FIRM'); setModal(null);
+      setSuccess(`Organização “${created.name}” cadastrada com sucesso.`);
+      await loadCompanies(created.id);
+      if (!all.some(o => o.id === created.id)) await loadOrganizations();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível cadastrar a organização.'); }
+    finally { setSaving(false); }
+  }
+
+  async function submitCompany(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setSaving(true); setError(''); setSuccess('');
+    const normalizedTaxId = taxId.replace(/\D/g, '');
+    if (!organizationId) { setError('Cadastre ou selecione uma organização antes de cadastrar uma empresa.'); setSaving(false); return; }
+    if (normalizedTaxId.length !== 14) { setError('Informe um CNPJ com 14 números.'); setSaving(false); return; }
+    try {
+      const created = await apiRequest<Company>('/companies', { method: 'POST', body: JSON.stringify({ name: companyName.trim(), taxId: normalizedTaxId, taxRegime, organizationId, city: city.trim() || undefined, state: state.trim().toUpperCase() || undefined }) });
+      setCompanies(current => [created, ...current.filter(c => c.id !== created.id)]);
+      setCompanyName(''); setTaxId(''); setTaxRegime('NAO_INFORMADO'); setCity(''); setState(''); setModal(null);
+      setSuccess(`Empresa “${created.name}” cadastrada com sucesso.`);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível cadastrar a empresa.'); }
+    finally { setSaving(false); }
+  }
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setAuthSubmitting(true); setError('');
+    try {
+      const path = authMode === 'register' ? '/auth/register' : '/auth/login';
+      const payload = authMode === 'register'
+        ? { name: authName.trim(), email: authEmail.trim(), password: authPassword, organizationName: authOrgName.trim(), organizationType: authOrgType }
+        : { email: authEmail.trim(), password: authPassword };
+      const result = await apiRequest<{ accessToken: string }>(path, { method: 'POST', body: JSON.stringify(payload) });
+      window.localStorage.setItem('reforma360_access_token', result.accessToken);
+      setAuthenticated(true); setAuthPassword(''); setError('');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível autenticar.'); }
+    finally { setAuthSubmitting(false); }
+  }
+  function logout() {
+    window.localStorage.removeItem('reforma360_access_token');
+    setAuthenticated(false); setOrganizations([]); setCompanies([]); setOrganizationId(''); setApiStatus('checking'); setError(''); setAuthMode('login');
+  }
+  function openModal(which: Exclude<Modal, null>) { setError(''); setSuccess(''); setModal(which); }
+  function closeModal() { if (!saving) setModal(null); }
+
+  if (!authReady) return <div className="auth-loading">Carregando Reforma 360…</div>;
+  if (!authenticated) return <main className="auth-screen"><section className="auth-card"><div className="auth-brand"><div className="brand-mark">R</div><div><strong>reforma 360</strong><small>INTELIGÊNCIA TRIBUTÁRIA</small></div></div><div className="eyebrow">PLATAFORMA DE ADEQUAÇÃO TRIBUTÁRIA</div><h1>{authMode === 'register' ? 'Crie sua conta' : 'Bem-vindo de volta'}</h1><p className="auth-description">{authMode === 'register' ? 'Cadastre seu acesso e crie a primeira organização.' : 'Entre para acessar as empresas e os módulos da sua organização.'}</p>{error && <div className="alert error-alert" role="alert"><ShieldAlert size={17}/><span>{error}</span></div>}<form onSubmit={submitAuth} className="form-stack">{authMode === 'register' && <><label>Seu nome<input required minLength={2} maxLength={120} autoComplete="name" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Nome completo"/></label></>}<label>E-mail<input type="email" required maxLength={180} autoComplete="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="voce@empresa.com.br"/></label><label>Senha<input type="password" required minLength={authMode === 'register' ? 10 : 1} autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder={authMode === 'register' ? 'Mínimo de 10 caracteres' : 'Sua senha'}/></label>{authMode === 'register' && <><label>Nome da organização<input required minLength={2} maxLength={160} value={authOrgName} onChange={e => setAuthOrgName(e.target.value)} placeholder="Ex.: Escritório Contábil Exemplo"/></label><label>Tipo de organização<select value={authOrgType} onChange={e => setAuthOrgType(e.target.value as Organization['type'])}>{organizationTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></label><div className="form-help">Use uma senha forte com pelo menos 10 caracteres, incluindo letras e números. O primeiro usuário será proprietário da organização criada.</div></>}<button type="submit" className="btn auth-submit" disabled={authSubmitting}>{authSubmitting ? 'Aguarde…' : authMode === 'register' ? 'Criar conta e organização' : 'Entrar'}</button></form><div className="auth-switch">{authMode === 'register' ? 'Já possui uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setError(''); }}>{authMode === 'register' ? 'Entrar' : 'Criar conta'}</button></div><div className="auth-safety"><ShieldCheck size={15}/> Ambiente de desenvolvimento. Não utilize dados fiscais reais.</div></section></main>;
+
+  return <div className="shell">
+    <aside className="sidebar">
+      <div className="brand"><div className="brand-mark">R</div><div><strong>reforma 360</strong><small>INTELIGÊNCIA TRIBUTÁRIA</small></div></div>
+      <div><div className="nav-label">Workspace</div><a className="nav-item active" href="#overview"><LayoutDashboard size={17}/> Visão geral</a><a className="nav-item" href="#companies"><Building2 size={17}/> Empresas</a><button className="nav-item nav-button" onClick={() => openModal('organization')}><Users size={17}/> Organizações e acessos</button></div>
+      <div><div className="nav-label">Reforma tributária</div><a className="nav-item" href="/checklist"><ClipboardCheck size={17}/> Checklist de adequação</a><a className="nav-item" href="/xml"><FileSearch size={17}/> Análise de XML</a><a className="nav-item" href="/simulador"><Calculator size={17}/> Simulador CBS / IBS</a><a className="nav-item disabled-nav" href="#credits" title="Será implementado na próxima etapa"><WalletCards size={17}/> Créditos tributários</a><a className="nav-item disabled-nav" href="#reports" title="Será implementado na próxima etapa"><Files size={17}/> Relatórios</a></div>
+      <div><div className="nav-label">Sistema</div><a className="nav-item disabled-nav" href="#activity"><Activity size={17}/> Histórico de atividades</a><a className="nav-item disabled-nav" href="#settings"><Settings2 size={17}/> Configurações</a></div>
+      <div className="sidebar-footer">Reforma 360 · versão 0.1.0<br/>Plataforma em desenvolvimento</div>
+    </aside>
+    <main className="main" id="overview">
+      <header className="topbar"><div className="crumb">Workspace <ChevronRight size={12} style={{display:'inline',verticalAlign:'middle'}}/> <strong>Visão geral</strong></div><div className="top-right"><span className="role-label">Ambiente de desenvolvimento</span><Bell size={17}/><div className="avatar">R</div><button className="icon-button" onClick={logout} title="Sair da conta" aria-label="Sair da conta"><LogOut size={16}/></button></div></header>
+      <div className="content">
+        <div className="eyebrow">PAINEL DE CONTROLE</div>
+        <div className="page-head"><div><h1>Visão geral</h1><p>Acompanhe a preparação tributária e organize as próximas ações da sua operação.</p></div><div className="head-actions"><button className="btn btn-light" onClick={() => void refresh()} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} style={{display:'inline',verticalAlign:'middle',marginRight:7}}/>Atualizar</button><button className="btn" onClick={() => selectedOrganization ? openModal('company') : openModal('organization')}><Plus size={15} style={{display:'inline',verticalAlign:'middle',marginRight:7}}/>{selectedOrganization ? 'Nova empresa' : 'Nova organização'}</button></div></div>
+        {error && !modal && <div className="alert error-alert" role="alert"><ShieldAlert size={17}/><span>{error}</span><button className="icon-button" aria-label="Fechar aviso" onClick={() => setError('')}><X size={16}/></button></div>}
+        {success && <div className="alert success-alert" role="status"><CheckCircle2 size={17}/><span>{success}</span><button className="icon-button" aria-label="Fechar aviso" onClick={() => setSuccess('')}><X size={16}/></button></div>}
+        <section className="workspace-select card"><div><label htmlFor="organization-select">Organização ativa</label><p>Os dados exibidos pertencem à organização selecionada.</p></div><select id="organization-select" value={organizationId} onChange={e => setOrganizationId(e.target.value)} disabled={!organizations.length}><option value="">{organizations.length ? 'Selecione uma organização' : 'Nenhuma organização cadastrada'}</option>{organizations.map(o => <option key={o.id} value={o.id}>{o.name} · {organizationLabel(o.type)}</option>)}</select><button className="text-button" onClick={() => openModal('organization')}><Plus size={14}/> Nova organização</button></section>
+        <div className="stats">
+          <div className="card"><div className="stat-top">Empresas cadastradas <span className="stat-icon"><Building2 size={17}/></span></div><div className="stat-value">{loading ? '…' : companies.length}</div><div className="stat-note">{selectedOrganization ? `Em ${selectedOrganization.name}` : 'Cadastre uma organização para começar'}</div></div>
+          <div className="card"><div className="stat-top">Pendências em aberto <span className="stat-icon"><ListTodo size={17}/></span></div><div className="stat-value">—</div><div className="stat-note"><a href="/checklist">Abrir checklist de adequação</a></div></div>
+          <div className="card"><div className="stat-top">Documentos analisados <span className="stat-icon"><FileCheck2 size={17}/></span></div><div className="stat-value">—</div><div className="stat-note">Importação de XML ainda não implementada</div></div>
+          <div className="card"><div className="stat-top">Status da API <span className="stat-icon"><Gauge size={17}/></span></div><div className="stat-value" style={{fontSize:22}}>{apiStatus === 'checking' ? 'Verificando' : apiStatus === 'online' ? 'Conectada' : 'Offline'}</div><div className="stat-note">{health ? `${health.service} · v${health.version}` : apiStatus === 'offline' ? 'Confira o backend e a conexão' : 'Testando conexão com o backend'}</div></div>
+        </div>
+        <div className="section-grid">
+          <section className="card"><div className="section-head"><div><h2 className="card-title">Plano de adequação</h2><div className="card-sub">Etapas previstas para a plataforma</div></div><span className="pill green">Fundação</span></div>
+            <div className="progress-row"><span>Fundação técnica do produto</span><span>Em andamento</span></div><div className="progress"><div style={{width:'30%'}}/></div>
+            <div style={{marginTop:22}} className="task"><div className="task-icon blue"><LockKeyhole size={17}/></div><div className="task-main"><strong>Autenticação e controle de acesso</strong><span>Próxima entrega: login seguro, organizações e escopo de permissões.</span></div><span className="pill">Próximo</span></div>
+            <div className="task"><div className="task-icon"><ClipboardCheck size={17}/></div><div className="task-main"><strong>Checklist de adequação</strong><span>Tarefas, prazos, responsáveis e evidências.</span></div><span className="pill">Planejado</span></div>
+            <div className="task"><div className="task-icon"><FileSearch size={17}/></div><div className="task-main"><strong>Leitura e validação de XML</strong><span>Importação, análise técnica e registro das divergências.</span></div><span className="pill">Planejado</span></div>
+            <div className="task"><div className="task-icon"><Calculator size={17}/></div><div className="task-main"><strong>Simulador CBS / IBS</strong><span>Cenários comparativos com regras e premissas rastreáveis.</span></div><span className="pill">Planejado</span></div>
+          </section>
+          <section className="card"><div className="section-head"><div><h2 className="card-title">Integridade da plataforma</h2><div className="card-sub">Verificações iniciais do ambiente</div></div><ShieldAlert size={19} color="#68758a"/></div>
+            <div className="task"><div className="task-icon blue"><Activity size={17}/></div><div className="task-main"><strong>API do sistema</strong><span>{apiStatus === 'online' ? 'Resposta recebida do backend.' : apiStatus === 'offline' ? 'Não foi possível alcançar o backend.' : 'Verificando disponibilidade.'}</span></div><span className={`pill ${apiStatus === 'online' ? 'green' : apiStatus === 'offline' ? 'red' : ''}`}>{apiStatus === 'online' ? 'Online' : apiStatus === 'offline' ? 'Offline' : 'Testando'}</span></div>
+            <div className="task"><div className="task-icon"><LockKeyhole size={17}/></div><div className="task-main"><strong>Autenticação</strong><span>Login ativo com token de acesso de duração limitada.</span></div><span className="pill green">Ativa</span></div>
+            <div className="task"><div className="task-icon"><Building2 size={17}/></div><div className="task-main"><strong>Isolamento por organização</strong><span>A API valida a associação do usuário antes de permitir acesso aos dados.</span></div><span className="pill red">Obrigatório</span></div>
+            <div className="notice"><strong>Ambiente de desenvolvimento.</strong> A autenticação inicial está habilitada; revise configuração de segredos, HTTPS, recuperação de senha e testes de segurança antes de produção.</div>
+            <div className="mini-stats"><div className="mini"><strong>6</strong><span>Módulos planejados</span></div><div className="mini"><strong>01</strong><span>Etapa atual</span></div></div>
+          </section>
+        </div>
+        <section className="card table-card" id="companies"><div className="section-head"><div><h2 className="card-title">Empresas cadastradas</h2><div className="card-sub">{selectedOrganization ? `Empresas vinculadas a ${selectedOrganization.name}` : 'Cadastre uma organização para começar'}</div></div><button className="text-button" onClick={() => selectedOrganization ? openModal('company') : openModal('organization')}><Plus size={14}/>{selectedOrganization ? 'Cadastrar empresa' : 'Criar organização'}</button></div>
+          {companies.length > 0 && <div className="table-toolbar"><div className="search-box"><Search size={15}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, CNPJ ou cidade" aria-label="Buscar empresas"/></div><span className="result-count">{filteredCompanies.length} resultado(s)</span></div>}
+          <div className="table-wrap"><table><thead><tr><th>Empresa</th><th>CNPJ</th><th>Regime tributário</th><th>Localidade</th><th>Cadastro</th></tr></thead><tbody>{loading ? <tr><td colSpan={5} className="table-empty">Carregando dados…</td></tr> : !selectedOrganization ? <tr><td colSpan={5} className="table-empty"><Building2 size={22}/><strong>Nenhuma organização selecionada</strong><span>Crie uma organização para começar a cadastrar empresas.</span><button className="btn" onClick={() => openModal('organization')}>Criar organização</button></td></tr> : filteredCompanies.length === 0 ? <tr><td colSpan={5} className="table-empty"><Building2 size={22}/><strong>{companies.length ? 'Nenhum resultado encontrado' : 'Nenhuma empresa cadastrada ainda'}</strong><span>{companies.length ? 'Tente alterar o termo da busca.' : 'Cadastre a primeira empresa vinculada a esta organização.'}</span>{!companies.length && <button className="btn" onClick={() => openModal('company')}>Nova empresa</button>}</td></tr> : filteredCompanies.map(c => <tr key={c.id}><td>{c.name}</td><td className="tax-id">{c.taxId}</td><td>{regimeLabel(c.taxRegime)}</td><td>{[c.city, c.state].filter(Boolean).join(' / ') || '—'}</td><td>{new Date(c.createdAt).toLocaleDateString('pt-BR')}</td></tr>)}</tbody></table></div>
+        </section>
+        <div className="empty-note"><CircleHelp size={14} style={{display:'inline',verticalAlign:'middle',marginRight:5}}/>Acesso por organização validado no backend. Edição, exclusão e recuperação de senha serão adicionadas em etapas posteriores.</div>
+      </div>
+    </main>
+    {modal && <div className="modal-backdrop" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) closeModal(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-head"><div><span className="eyebrow">REFORMA 360</span><h2 id="modal-title">{modal === 'organization' ? 'Nova organização' : 'Cadastrar empresa'}</h2><p>{modal === 'organization' ? 'Defina o tipo de operação que utilizará a plataforma.' : `A empresa será vinculada a ${selectedOrganization?.name || 'organização selecionada'}.`}</p></div><button className="icon-button close-button" onClick={closeModal} aria-label="Fechar" disabled={saving}><X size={19}/></button></div>
+      {error && <div className="alert error-alert" role="alert"><ShieldAlert size={17}/><span>{error}</span></div>}
+      {modal === 'organization' ? <form onSubmit={submitOrganization} className="form-stack"><label>Nome da organização<input autoFocus required minLength={2} maxLength={160} value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="Ex.: Escritório Contábil Exemplo"/></label><label>Tipo de organização<select value={orgType} onChange={e => setOrgType(e.target.value as Organization['type'])}>{organizationTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></label><div className="form-help">No momento, este cadastro é para desenvolvimento local. O acesso seguro por usuário será implementado antes da publicação.</div><div className="modal-actions"><button type="button" className="btn btn-light" onClick={closeModal} disabled={saving}>Cancelar</button><button type="submit" className="btn" disabled={saving}>{saving ? 'Salvando…' : 'Salvar organização'}</button></div></form> : <form onSubmit={submitCompany} className="form-stack"><label>Razão social / nome da empresa<input autoFocus required minLength={2} maxLength={160} value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ex.: Empresa Exemplo Ltda."/></label><label>CNPJ<input required inputMode="numeric" maxLength={18} value={taxId} onChange={e => setTaxId(e.target.value.replace(/\D/g, '').slice(0,14))} placeholder="Somente números"/><small>{taxId.replace(/\D/g, '').length}/14 dígitos</small></label><label>Regime tributário<select value={taxRegime} onChange={e => setTaxRegime(e.target.value)}>{taxRegimes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></label><div className="form-row"><label>Cidade<input maxLength={120} value={city} onChange={e => setCity(e.target.value)} placeholder="Ex.: São Paulo"/></label><label>UF<input maxLength={2} value={state} onChange={e => setState(e.target.value.replace(/[^a-z]/gi, '').slice(0,2))} placeholder="SP"/></label></div><div className="form-help">O CNPJ deve conter 14 números. A validação completa do dígito verificador será aprimorada em uma próxima etapa.</div><div className="modal-actions"><button type="button" className="btn btn-light" onClick={closeModal} disabled={saving}>Cancelar</button><button type="submit" className="btn" disabled={saving || !organizationId}>{saving ? 'Salvando…' : 'Salvar empresa'}</button></div></form>}
+    </section></div>}
+  </div>;
+}
+</file>
+
+<file path="reforma-360/frontend/.env.example">
+NEXT_PUBLIC_API_URL=http://localhost:3001/api
+</file>
+
+<file path="reforma-360/frontend/.gitignore">
+node_modules/
+.next/
+out/
+.env*
+!.env.example
+</file>
+
+<file path="reforma-360/frontend/next-env.d.ts">
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+/// <reference path="./.next/types/routes.d.ts" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+</file>
+
+<file path="reforma-360/frontend/next.config.ts">
+import type { NextConfig } from 'next';
+const nextConfig: NextConfig = {};
+export default nextConfig;
+</file>
+
+<file path="reforma-360/frontend/package.json">
+{
+  "name": "reforma-360-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "lint": "eslint ." },
+  "dependencies": { "next": "^15.5.3", "react": "^19.1.1", "react-dom": "^19.1.1", "lucide-react": "^0.468.0" },
+  "devDependencies": { "@types/node": "^22.10.2", "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0", "eslint": "^9.17.0", "eslint-config-next": "^15.5.3", "typescript": "^5.7.2" }
+}
+</file>
+
+<file path="reforma-360/frontend/tsconfig.json">
+{"compilerOptions":{"target":"ES2017","lib":["dom","dom.iterable","esnext"],"allowJs":true,"skipLibCheck":true,"strict":true,"noEmit":true,"esModuleInterop":true,"module":"esnext","moduleResolution":"bundler","resolveJsonModule":true,"isolatedModules":true,"jsx":"preserve","incremental":true,"plugins":[{"name":"next"}],"paths":{"@/*":["./*"]}},"include":["next-env.d.ts","**/*.ts","**/*.tsx",".next/types/**/*.ts"],"exclude":["node_modules"]}
+</file>
+
+<file path="reforma-360/ETAPA-2-CHECKLIST-LEIA-ANTES.md">
+# Reforma 360 — Etapa 2: Checklist de adequação
+
+Este pacote é baseado no projeto `reforma-360.zip` enviado anteriormente. Os arquivos existentes foram preservados, o CSS foi complementado (não substituído) e o arquivo `.env` foi removido do pacote por segurança.
+
+## O que foi adicionado
+- API autenticada para listar, criar, atualizar status e excluir tarefas do checklist.
+- Isolamento por organização: a API valida a associação do usuário à organização e valida que a empresa selecionada pertence à mesma organização.
+- Campos: título, descrição, categoria, empresa opcional, status, prioridade, prazo, responsável e link de evidência.
+- Tela responsiva `/checklist`, pesquisa, filtro por status, contadores e criação de tarefas.
+- Migração SQL aditiva; não remove tabelas nem registros atuais.
+
+## Antes de executar
+1. Faça uma cópia de segurança do banco de dados e do projeto.
+2. Não compartilhe o arquivo `backend/.env`. O `.env.example` pode ser usado como modelo.
+3. Confirme que `backend/.env` local contém a `DATABASE_URL` correta.
+
+## Aplicar a migração
+No terminal, entre na pasta `backend`:
+```powershell
+npm install
+npx prisma migrate deploy
+npx prisma generate
+npm run build
+```
+
+Se o ambiente estiver em desenvolvimento e a política do projeto usar `migrate dev`, revise a migration antes de executar. Não use `prisma migrate reset`: isso pode apagar dados.
+
+Depois, na pasta `frontend`:
+```powershell
+npm install
+npm run build
+```
+
+## Teste manual
+1. Entre com uma conta existente.
+2. Abra “Checklist de adequação” pelo menu do painel.
+3. Crie uma tarefa sem empresa e outra vinculada a uma empresa da organização.
+4. Altere o status entre Pendente, Em andamento e Concluída.
+5. Atualize a página e confirme que as tarefas continuam salvas.
+6. Entre com outra conta e confirme que ela não enxerga as tarefas da primeira organização.
+
+## Observação
+Este pacote foi conferido quanto à estrutura dos arquivos e integração com os nomes de rota, token e modelos presentes no ZIP fornecido. A compilação real precisa ser executada no seu ambiente, com as dependências e variáveis locais. O checklist é uma ferramenta de organização; não substitui a validação tributária por legislação vigente e especialista fiscal.
+
+
+## Se aparecer `checklistItem` ou tipos Prisma não encontrados
+
+Esses erros normalmente significam que o Prisma Client instalado ainda foi gerado antes de o modelo `ChecklistItem` ser adicionado ao schema. Na pasta `backend`, execute nesta ordem:
+
+```powershell
+npx prisma format
+npx prisma validate
+npx prisma generate
+npm run build
+```
+
+Se `prisma validate` disser que faltam relações, não continue para produção: envie a mensagem completa para corrigirmos o schema. Em seguida, aplique a migration no banco com `npx prisma migrate deploy` (após backup). Não use `prisma migrate reset`.
+</file>
+
+<file path="reforma-360/ETAPA-3-ANALISE-XML.md">
+# Reforma 360 — Etapa 3: Análise de XML
+
+## O que foi acrescentado
+- Tela `/xml` redesenhada, responsiva, com indicadores, busca, filtros, detalhes e área de arrastar/soltar arquivos.
+- Importação de múltiplos arquivos XML e TXT (até 5 MB por arquivo). XML de NF-e modelo 55 tem extração estrutural; TXT fica anexado como material de apoio e marcado para revisão manual.
+- API autenticada `GET /api/fiscal-documents?organizationId=...` e `POST /api/fiscal-documents/import`.
+- Extração inicial de chave de acesso, número/série, emitente, destinatário, data, total e itens (descrição, NCM, CFOP, quantidade e valores).
+- Sinalização de pontos para revisar e bloqueio de duplicidade por organização/chave de acesso.
+- Tabela `FiscalDocument` vinculada à organização; a exclusão de uma organização remove seus documentos pela relação em cascata.
+- A tela Análise de XML fica disponível no menu do painel.
+
+## Instalação
+1. Faça uma cópia de segurança do projeto e do banco antes de aplicar migrações.
+2. Extraia o ZIP. Preserve seu arquivo `.env` local; ele não é incluído no pacote.
+3. No backend, instale a dependência nova e atualize o cliente Prisma:
+   ```powershell
+   cd backend
+   npm install
+   npx prisma validate
+   npx prisma generate
+   npx prisma migrate deploy
+   npm run start:dev
+   ```
+4. Em outro terminal, inicie o frontend:
+   ```powershell
+   cd frontend
+   npm install
+   npm run dev
+   ```
+5. Entre no sistema, selecione uma organização e acesse **Análise de XML**.
+
+## Observações
+- A migração `20261020190000_add_fiscal_documents` adiciona somente a nova tabela e índices; não redefine nem limpa tabelas existentes.
+- O conteúdo original de XML ou TXT é armazenado para rastreabilidade e ocupa espaço no banco. O endpoint limita cada arquivo a 5 MB; o backend aceita corpo JSON de até 6 MB para a transferência.
+- Nesta primeira versão, a leitura de XML é uma extração estrutural inicial; arquivos TXT são guardados como apoio e precisam de revisão manual. e não substitui validação fiscal oficial. A extração espera NF-e modelo 55 e os formatos XML comuns de NF-e processada ou não processada.
+- As advertências exibidas não são cálculo fiscal nem determinação definitiva de CBS/IBS.
+- Não foram executados testes automatizados nesta atualização, conforme solicitado.
+</file>
+
+<file path="reforma-360/ETAPA-4-SIMULADOR-CBS-IBS.md">
+# Etapa 4 — Simulador CBS / IBS
+
+## O que foi adicionado
+- Nova tela `/simulador`, responsiva, com cálculo instantâneo e comparação entre cenário atual e cenário simplificado CBS/IBS.
+- Parâmetros editáveis: faturamento, compras, alíquota atual estimada, alíquotas de referência CBS/IBS, redução e percentual de compras potencialmente creditáveis.
+- Estimativa de tributo bruto, créditos, tributo líquido, diferença e impacto simplificado na margem.
+- Memória de cálculo visível na tela.
+- Histórico de cenários salvo por organização, protegido por autenticação e verificação de associação.
+- Nova tabela `TaxSimulation` e migração incremental.
+
+## Instalação
+1. Faça uma cópia de segurança normal do projeto e preserve o `.env` existente.
+2. Copie os arquivos do ZIP mantendo os caminhos e sem remover os arquivos atuais.
+3. No backend, execute:
+   ```powershell
+   npx prisma validate
+   npx prisma migrate deploy
+   npx prisma generate
+   npm run start:dev
+   ```
+4. No frontend, execute `npm run dev`.
+5. Entre na plataforma e acesse `Simulador CBS / IBS` no menu ou abra `/simulador`.
+
+## Importante sobre os resultados
+Esta é uma ferramenta gerencial de estimativa, não uma apuração fiscal definitiva. As alíquotas iniciais são premissas editáveis e precisam ser confirmadas conforme legislação, período, regime, operação e enquadramento. A fórmula de crédito é deliberadamente simplificada; não cobre todas as condições, vedações, regimes específicos, destino, transição ou demais regras de incidência. Não use os resultados isoladamente para emissão de documentos ou recolhimento de tributos.
+
+Não foi executada suíte de testes, conforme solicitado. Preserve o banco existente; a migração cria uma tabela nova e não deve exigir reset.
+</file>
+
+<file path="reforma-360/README.md">
+# Reforma 360 — v0.3.0 (autenticação e isolamento inicial)
+
+Projeto SaaS em desenvolvimento: Next.js + TypeScript, NestJS, Prisma e PostgreSQL.
+
+## Entregas desta versão
+- Cadastro de usuário com e-mail e senha (hash bcrypt, custo 12).
+- Criação da primeira organização durante o cadastro.
+- Login com token JWT de 8 horas.
+- Logout no frontend.
+- Rotas de organizações e empresas protegidas por Bearer token.
+- Backend valida a associação do usuário à organização antes de listar/criar empresas.
+- Organizações listadas apenas para o usuário autenticado.
+- Preservação dos registros existentes no banco. No cadastro do primeiro usuário, organizações antigas sem nenhum membro são associadas a esse usuário para permitir continuidade dos dados locais.
+
+## Avisos antes de produção
+Esta versão é uma etapa de desenvolvimento e ainda não deve ser exposta a usuários reais. Antes de produção, configure um JWT_SECRET forte e privado, HTTPS, limitação de tentativas de login, recuperação de senha, política de sessão, testes de segurança e revisão de permissões. Não use dados fiscais reais ainda. Não publique o segredo no Git.
+
+## Requisitos
+- Node.js 22 LTS
+- PostgreSQL
+- `DATABASE_URL` configurada em `backend/.env`
+- `JWT_SECRET` forte em `backend/.env` (mínimo recomendado 32 caracteres aleatórios)
+
+## Instalação/atualização
+Faça backup da pasta atual antes de substituir arquivos. Mantenha o `.env` existente e não o sobrescreva.
+
+### Backend
+```powershell
+cd backend
+npm install
+npx prisma generate
+npm run build
+npm run start:dev
+```
+
+O schema Prisma desta versão reutiliza os modelos User e Membership já existentes no schema da versão 0.2.0, portanto não é necessária uma nova migração se o banco foi criado com aquela versão. Se o banco foi criado a partir de outro schema, compare antes de aplicar qualquer migração.
+
+### Frontend (outro terminal)
+```powershell
+cd frontend
+npm install
+npm run build
+npm run dev
+```
+
+Acesse `http://localhost:3000`. A API fica em `http://localhost:3001/api`; Swagger em `http://localhost:3001/api/docs`.
+
+## Fluxo de teste
+1. Abra o site e crie uma conta com e-mail válido e senha de pelo menos 10 caracteres contendo letras e números.
+2. Cadastre o nome e o tipo da organização inicial.
+3. Confirme que o dashboard lista a organização e as empresas associadas.
+4. Cadastre uma empresa e atualize a página para verificar persistência.
+5. Clique em sair, entre novamente com o mesmo e-mail e senha e confirme que os dados continuam acessíveis.
+6. Tente listar empresas sem token usando Swagger ou `curl`: deve responder `401`.
+7. Tente usar o token de um usuário A com o `organizationId` de uma organização do usuário B: deve responder `403`.
+8. Registre outro usuário e confirme que ele não vê organizações já vinculadas ao usuário A.
+
+## Endpoints
+- `GET /api/health` — público
+- `POST /api/auth/register` — cadastro de usuário e organização inicial
+- `POST /api/auth/login` — login
+- `GET /api/auth/me` — usuário autenticado e organizações
+- `GET /api/organizations` — organizações do usuário autenticado
+- `POST /api/organizations` — cria organização e vincula usuário como OWNER
+- `GET /api/companies?organizationId=...` — lista empresas se o usuário for membro
+- `POST /api/companies` — cria empresa somente em organização vinculada
+
+## Próximos módulos
+1. Testes de segurança, gestão de membros e convites para equipe.
+2. Checklist de adequação tributária.
+3. Importação e validação técnica de XML.
+4. Motor versionado de cálculos CBS/IBS, créditos, custos, preços, margens e fluxo de caixa com memória de cálculo e testes automatizados.
+5. Relatórios e auditoria.
+
+
+## Etapa 4 — Simulador CBS / IBS
+
+Consulte `ETAPA-4-SIMULADOR-CBS-IBS.md` para instruções de instalação, escopo e limitações da simulação. A tela fica disponível em `/simulador` e os cenários são armazenados por organização.
+</file>
+
+</files>

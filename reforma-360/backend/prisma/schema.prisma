@@ -148,3 +148,31 @@ model TaxSimulation {
 
   @@index([organizationId, createdAt])
 }
+// --- TABELAS DO MOTOR TRIBUTÁRIO ---
+
+model StateTaxRate {
+  id        String   @id @default(cuid())
+  uf        String   @unique
+  ibsRate   Decimal  @db.Decimal(5, 2)
+  updatedAt DateTime @updatedAt
+  
+  @@index([uf])
+}
+
+model NcmRule {
+  id             String   @id @default(cuid())
+  ncmPrefix      String   @unique // Ex: '3003', '0401' ou o NCM completo
+  description    String
+  reductionPct   Decimal  @db.Decimal(5, 2) @default(0) // 0 a 100
+  isExempt       Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+  
+  @@index([ncmPrefix])
+}
+
+model FederalTaxRate {
+  id        String   @id @default(cuid())
+  year      Int      @unique
+  cbsRate   Decimal  @db.Decimal(5, 2)
+  updatedAt DateTime @updatedAt
+}
