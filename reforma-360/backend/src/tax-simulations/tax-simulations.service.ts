@@ -11,8 +11,10 @@ type Inputs = {
   reduction: number;
   creditablePurchases: number;
   documentId?: string;
+  purchaseDocumentIds?: string[];
   simulationYear?: number;
-  taxRegime?: 'NORMAL' | 'SIMPLES_DAS' | 'SIMPLES_POR_FORA'; // Novo campo de Regime
+  taxRegime?: 'NORMAL' | 'SIMPLES_DAS' | 'SIMPLES_POR_FORA';
+  sector?: 'GERAL' | 'PROFISSIONAL_LIBERAL' | 'SAUDE_EDUCACAO'; // Novo campo de Setor
 };
 
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -24,7 +26,7 @@ const numeric = (value: unknown, field: string) => {
   return number;
 };
 
-// Linha do tempo da Reforma
+// Linha do tempo da Reforma (EC 132/23)
 function getTransition(year: number) {
   if (year <= 2026) return { cbsMult: 0.1, ibsMult: 0.01, currentMult: 1.0 };
   if (year === 2027 || year === 2028) return { cbsMult: 1.0, ibsMult: 0.01, currentMult: 0.7 };
@@ -33,6 +35,13 @@ function getTransition(year: number) {
   if (year === 2031) return { cbsMult: 1.0, ibsMult: 0.3, currentMult: 0.4 };
   if (year === 2032) return { cbsMult: 1.0, ibsMult: 0.4, currentMult: 0.3 };
   return { cbsMult: 1.0, ibsMult: 1.0, currentMult: 0.0 };
+}
+
+// Retorna o percentual de redução baseado no Setor
+function getSectorReduction(sector?: string): number {
+  if (sector === 'PROFISSIONAL_LIBERAL') return 30; // Redução de 30%
+  if (sector === 'SAUDE_EDUCACAO') return 60; // Redução de 60%
+  return 0; // Regra Geral (sem redução)
 }
 
 @Injectable()
@@ -52,16 +61,21 @@ export class TaxSimulationsService {
       currentRate: numeric(raw.currentRate, 'alíquota atual'),
       cbsRate: numeric(raw.cbsRate, 'alíquota CBS'),
       ibsRate: numeric(raw.ibsRate, 'alíquota IBS'),
-      reduction: numeric(raw.reduction, 'redução'),
+      reduction: numeric(raw.reduction, 'redução manual NCM'),
       creditablePurchases: numeric(raw.creditablePurchases, 'percentual creditável'),
       simulationYear: raw.simulationYear ? numeric(raw.simulationYear, 'ano de simulação') : 2033,
       taxRegime: (raw.taxRegime as any) || 'NORMAL',
+      sector: (raw.sector as any) || 'GERAL',
     };
     
     const trans = getTransition(inputs.simulationYear!);
+    const sectorReduction = getSectorReduction(inputs.sector);
+    
+    // O sistema aplica a maior redução (Setor vs Produto) para não duplicar benefícios
+    const finalReduction = Math.max(inputs.reduction, sectorReduction);
     
     const nominalReformRate = (inputs.cbsRate * trans.cbsMult) + (inputs.ibsRate * trans.ibsMult);
-    const effectiveReformRate = nominalReformRate * (1 - inputs.reduction / 100);
+    const effectiveReformRate = nominalReformRate * (1 - finalReduction / 100);
     const grossReformTax = round(inputs.revenue * effectiveReformRate / 100);
     const eligiblePurchaseBase = inputs.purchases * inputs.creditablePurchases / 100;
     
@@ -70,17 +84,15 @@ export class TaxSimulationsService {
 
     if (regime === 'SIMPLES_DAS') {
       finalCurrentTax = round(inputs.revenue * inputs.currentRate / 100);
-      netReformTax = 0; // Não paga CBS/IBS por fora
-      estimatedCredits = 0; // Não deduz créditos nas compras
-      creditTransferred = round(finalCurrentTax * 0.33); // Estima-se que só ~33% do DAS é repassado como crédito
+      netReformTax = 0;
+      estimatedCredits = 0;
+      creditTransferred = round(finalCurrentTax * 0.33);
     } else if (regime === 'SIMPLES_POR_FORA') {
-      // Paga DAS reduzido (sem a fração de consumo) + CBS/IBS cheios
       finalCurrentTax = round(inputs.revenue * (inputs.currentRate * 0.67) / 100);
       estimatedCredits = round(eligiblePurchaseBase * effectiveReformRate / 100);
       netReformTax = round(Math.max(0, grossReformTax - estimatedCredits));
-      creditTransferred = round(grossReformTax); // Repassa 100% de crédito para B2B
+      creditTransferred = round(grossReformTax);
     } else {
-      // NORMAL (Lucro Real / Presumido)
       finalCurrentTax = round(inputs.revenue * (inputs.currentRate * trans.currentMult) / 100);
       estimatedCredits = round(eligiblePurchaseBase * effectiveReformRate / 100);
       netReformTax = round(Math.max(0, grossReformTax - estimatedCredits));
@@ -98,7 +110,7 @@ export class TaxSimulationsService {
       estimatedMarginAfterCurrentTax: round(inputs.revenue - inputs.purchases - originalTax),
       estimatedMarginAfterReformTax: round(inputs.revenue - inputs.purchases - (finalCurrentTax + netReformTax)),
       creditTransferredToB2B: creditTransferred,
-      methodology: `Regime: ${regime}. Ano: ${inputs.simulationYear}. Multiplicadores aplicados.`,
+      methodology: `Setor: ${inputs.sector} (Redução: ${sectorReduction}%). Regime: ${regime}. Estimativa manual.`,
     };
   }
 
@@ -120,8 +132,13 @@ export class TaxSimulationsService {
     await this.assertMember(userId, body.organizationId);
     
     const doc = await this.prisma.fiscalDocument.findUnique({ where: { id: body.documentId, organizationId: body.organizationId } });
-    if (!doc) throw new NotFoundException('Documento fiscal não encontrado.');
-    if (doc.documentType === 'TEXT') throw new BadRequestException('Ficheiros TXT não são suportados para simulação automática.');
+    if (!doc) throw new NotFoundException('Documento fiscal de venda não encontrado.');
+    if (doc.documentType === 'TEXT') throw new BadRequestException('Ficheiros TXT não suportados.');
+
+    const purchaseIds = Array.isArray(body.inputs.purchaseDocumentIds) ? body.inputs.purchaseDocumentIds : [];
+    const purchaseDocs = purchaseIds.length > 0 
+      ? await this.prisma.fiscalDocument.findMany({ where: { id: { in: purchaseIds }, organizationId: body.organizationId } })
+      : [];
 
     const parser = new XMLParser({ ignoreAttributes: false });
     const parsedXml = parser.parse(doc.rawXml);
@@ -141,47 +158,90 @@ export class TaxSimulationsService {
 
     const year = body.inputs.simulationYear ? numeric(body.inputs.simulationYear, 'ano de simulação') : 2033;
     const trans = getTransition(year);
+    const sector = (body.inputs.sector as string) || 'GERAL';
+    const sectorReduction = getSectorReduction(sector);
+
     const finalCbs = baseCbs * trans.cbsMult;
     const finalIbs = baseIbs * trans.ibsMult;
 
+    // CÁLCULO DAS VENDAS
     const items = (doc.items as any[]) || [];
     const docRevenue = Number(doc.totalAmount || 0);
-    
     let totalGrossReform = 0, totalCbs = 0, totalIbs = 0;
 
     const itemsCalculated = items.map((item: any) => {
       const itemTotal = Number(item.total || 0);
       const ncm = String(item.ncm || '00000000').padStart(8, '0');
-      
-      let reduction = 0;
+      let ncmReduction = 0;
       const matchedRule = ncmRules.find(rule => ncm.startsWith(rule.ncmPrefix));
-      if (matchedRule) reduction = Number(matchedRule.reductionPct);
+      if (matchedRule) ncmReduction = Number(matchedRule.reductionPct);
       
-      const effectiveCbs = finalCbs * (1 - reduction / 100);
-      const effectiveIbs = finalIbs * (1 - reduction / 100);
-      const cbsTax = round(itemTotal * effectiveCbs / 100);
-      const ibsTax = round(itemTotal * effectiveIbs / 100);
-      const grossTax = round(cbsTax + ibsTax);
+      // Maior benefício: NCM ou Setor
+      const appliedReduction = Math.max(ncmReduction, sectorReduction);
+      
+      const effectiveCbs = finalCbs * (1 - appliedReduction / 100);
+      const effectiveIbs = finalIbs * (1 - appliedReduction / 100);
+      const grossTax = round(itemTotal * (effectiveCbs + effectiveIbs) / 100);
 
-      totalGrossReform += grossTax; totalCbs += cbsTax; totalIbs += ibsTax;
+      totalGrossReform += grossTax; 
+      totalCbs += round(itemTotal * effectiveCbs / 100); 
+      totalIbs += round(itemTotal * effectiveIbs / 100);
 
       return {
         ...item, ncm,
-        appliedRules: { ufOrigin, ufDestination, cityDestination, isReduced: reduction > 0, ruleDescription: matchedRule ? matchedRule.description : null },
+        appliedRules: { ufOrigin, ufDestination, cityDestination, isReduced: appliedReduction > 0, ruleDescription: matchedRule ? matchedRule.description : (sectorReduction > 0 ? `Redução de Setor (${sectorReduction}%)` : null) },
         cbsRateApplied: finalCbs, ibsRateApplied: finalIbs,
         currentTax: round(itemTotal * numeric(body.inputs.currentRate, 'alíquota atual') / 100),
-        cbsTax, ibsTax, grossReformTax: grossTax,
+        cbsTax: round(itemTotal * effectiveCbs / 100), ibsTax: round(itemTotal * effectiveIbs / 100), grossReformTax: grossTax,
       };
     });
 
+    // CÁLCULO DAS COMPRAS REAIS
+    let exactCreditsTotal = 0;
+    let realPurchasesVolume = 0;
+    const hasRealPurchases = purchaseDocs.length > 0;
+
+    if (hasRealPurchases) {
+      for (const pDoc of purchaseDocs) {
+        if (pDoc.documentType === 'TEXT') continue;
+        const pParsedXml = parser.parse(pDoc.rawXml);
+        const pNfe = pParsedXml.nfeProc?.NFe || pParsedXml.NFe;
+        const pUfDestination = pNfe?.infNFe?.dest?.enderDest?.UF || 'SP';
+
+        let pStateRate = await this.prisma.stateTaxRate.findUnique({ where: { uf: pUfDestination } });
+        if (!pStateRate) pStateRate = await this.prisma.stateTaxRate.findUnique({ where: { uf: 'DEFAULT' } });
+        const pFinalIbs = (pStateRate ? Number(pStateRate.ibsRate) : 17.7) * trans.ibsMult;
+
+        realPurchasesVolume += Number(pDoc.totalAmount || 0);
+        const pItems = (pDoc.items as any[]) || [];
+
+        for (const item of pItems) {
+          const itemTotal = Number(item.total || 0);
+          const ncm = String(item.ncm || '00000000').padStart(8, '0');
+          let ncmReduction = 0;
+          const matchedRule = ncmRules.find(rule => ncm.startsWith(rule.ncmPrefix));
+          if (matchedRule) ncmReduction = Number(matchedRule.reductionPct);
+          
+          const appliedReduction = Math.max(ncmReduction, sectorReduction);
+          const effectiveCbs = finalCbs * (1 - appliedReduction / 100);
+          const effectiveIbs = pFinalIbs * (1 - appliedReduction / 100);
+          exactCreditsTotal += round(itemTotal * (effectiveCbs + effectiveIbs) / 100);
+        }
+      }
+    }
+
     const regime = (body.inputs.taxRegime as any) || 'NORMAL';
     const baseCurrentRate = numeric(body.inputs.currentRate, 'alíquota atual');
-    const purchases = numeric(body.inputs.purchases, 'compras');
-    const creditablePurchases = numeric(body.inputs.creditablePurchases, 'percentual creditável');
-    
+    const finalPurchasesVolume = hasRealPurchases ? realPurchasesVolume : numeric(body.inputs.purchases, 'compras');
     const averageEffectiveRate = docRevenue > 0 ? (totalGrossReform / docRevenue) * 100 : 0;
-    const eligiblePurchaseBase = purchases * creditablePurchases / 100;
-    const rawEstimatedCredits = round(eligiblePurchaseBase * averageEffectiveRate / 100);
+    
+    let baseCredits = 0;
+    if (hasRealPurchases) {
+      baseCredits = exactCreditsTotal;
+    } else {
+      const creditablePurchases = numeric(body.inputs.creditablePurchases, 'percentual creditável');
+      baseCredits = round((finalPurchasesVolume * creditablePurchases / 100) * averageEffectiveRate / 100);
+    }
 
     let finalCurrentTax = 0, finalNetReformTax = 0, finalEstimatedCredits = 0, creditTransferred = 0;
 
@@ -190,14 +250,9 @@ export class TaxSimulationsService {
       finalNetReformTax = 0;
       finalEstimatedCredits = 0;
       creditTransferred = round(finalCurrentTax * 0.33);
-    } else if (regime === 'SIMPLES_POR_FORA') {
-      finalCurrentTax = round(docRevenue * (baseCurrentRate * 0.67) / 100);
-      finalEstimatedCredits = rawEstimatedCredits;
-      finalNetReformTax = round(Math.max(0, totalGrossReform - finalEstimatedCredits));
-      creditTransferred = round(totalGrossReform);
-    } else {
-      finalCurrentTax = round(docRevenue * (baseCurrentRate * trans.currentMult) / 100);
-      finalEstimatedCredits = rawEstimatedCredits;
+    } else if (regime === 'SIMPLES_POR_FORA' || regime === 'NORMAL') {
+      finalCurrentTax = regime === 'SIMPLES_POR_FORA' ? round(docRevenue * (baseCurrentRate * 0.67) / 100) : round(docRevenue * (baseCurrentRate * trans.currentMult) / 100);
+      finalEstimatedCredits = baseCredits;
       finalNetReformTax = round(Math.max(0, totalGrossReform - finalEstimatedCredits));
       creditTransferred = round(totalGrossReform);
     }
@@ -207,19 +262,22 @@ export class TaxSimulationsService {
 
     const results = {
       isDocumentSimulation: true,
+      hasRealPurchases,
       currentTax: finalCurrentTax, nominalReformRate: null, effectiveReformRate: round(averageEffectiveRate),
-      grossReformTax: regime === 'SIMPLES_DAS' ? 0 : round(totalGrossReform), eligiblePurchaseBase: round(eligiblePurchaseBase), 
-      estimatedCredits: finalEstimatedCredits, netReformTax: finalNetReformTax, difference,
+      grossReformTax: regime === 'SIMPLES_DAS' ? 0 : round(totalGrossReform), 
+      eligiblePurchaseBase: finalPurchasesVolume, 
+      estimatedCredits: finalEstimatedCredits, 
+      netReformTax: finalNetReformTax, difference,
       differencePercent: originalTax ? round((difference / originalTax) * 100) : null,
-      estimatedMarginBeforeTax: round(docRevenue - purchases),
-      estimatedMarginAfterCurrentTax: round(docRevenue - purchases - originalTax),
-      estimatedMarginAfterReformTax: round(docRevenue - purchases - (finalCurrentTax + finalNetReformTax)),
+      estimatedMarginBeforeTax: round(docRevenue - finalPurchasesVolume),
+      estimatedMarginAfterCurrentTax: round(docRevenue - finalPurchasesVolume - originalTax),
+      estimatedMarginAfterReformTax: round(docRevenue - finalPurchasesVolume - (finalCurrentTax + finalNetReformTax)),
       creditTransferredToB2B: creditTransferred,
-      methodology: `IBS dinâmico (${baseIbs}%) para ${ufDestination}. Regime: ${regime}. Ano: ${year}.`,
+      methodology: `Setor: ${sector}. Regime: ${regime}. Créditos: ${hasRealPurchases ? 'Exatos via XML' : 'Estimativa'}.`,
       itemsCalculated
     };
 
-    const finalInputs = { ...body.inputs, documentId: body.documentId, revenue: docRevenue, simulationYear: year, taxRegime: regime };
+    const finalInputs = { ...body.inputs, documentId: body.documentId, purchaseDocumentIds: purchaseIds, revenue: docRevenue, purchases: finalPurchasesVolume, simulationYear: year, taxRegime: regime, sector };
 
     return this.prisma.taxSimulation.create({
       data: { organizationId: body.organizationId, name: body.name.trim().slice(0, 120), inputs: finalInputs as any, results: results as any },

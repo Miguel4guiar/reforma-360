@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
@@ -21,5 +21,11 @@ export class FiscalDocumentsController {
   @ApiOperation({ summary: 'Importa e extrai dados de um XML fiscal' })
   importXml(@Req() req: Request & { user: { id: string } }, @Body() body: { organizationId: string; fileName: string; xml: string }) {
     return this.service.importXml(req.user.id, body.organizationId, body.fileName, body.xml);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Apaga um documento fiscal específico' })
+  remove(@Req() req: Request & { user: { id: string } }, @Param('id') id: string) {
+    return this.service.remove(req.user.id, id);
   }
 }

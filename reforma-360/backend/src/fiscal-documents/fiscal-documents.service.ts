@@ -79,4 +79,18 @@ export class FiscalDocumentsService {
       status: warnings.length ? 'REVIEW' : 'PROCESSED', warnings, items, rawXml: xml,
     }, select: { id: true, organizationId: true, fileName: true, accessKey: true, documentNumber: true, series: true, documentType: true, issuerName: true, issuerTaxId: true, recipientName: true, recipientTaxId: true, issuedAt: true, totalAmount: true, status: true, warnings: true, items: true, createdAt: true } });
   }
+
+  async remove(userId: string, id: string) {
+    const document = await this.prisma.fiscalDocument.findUnique({ where: { id } });
+    if (!document) {
+      throw new NotFoundException('Documento fiscal não encontrado.');
+    }
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId_organizationId: { userId, organizationId: document.organizationId } },
+    });
+    if (!membership) {
+      throw new ForbiddenException('Não tem permissão para apagar este documento.');
+    }
+    return this.prisma.fiscalDocument.delete({ where: { id } });
+  }
 }
