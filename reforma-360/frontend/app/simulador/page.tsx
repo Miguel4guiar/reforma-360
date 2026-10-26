@@ -2,7 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Calculator, CheckCircle2, Info, Save, TrendingDown, TrendingUp, Receipt, LayoutList, Zap, Award, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Calculator, CheckCircle2, Save, Receipt, LayoutList, Zap, Award, ShoppingBag, BarChart3 } from 'lucide-react';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
 type Organization = { id: string; name: string };
 type FiscalDocument = { id: string; fileName: string; documentNumber: string | null; documentType: string; status: string; totalAmount: string | number | null; items: any[] };
@@ -14,7 +15,6 @@ type Simulation = { id: string; name: string; inputs: Inputs; results: Results; 
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 const defaults: Inputs = { revenue: '100000', purchases: '45000', currentRate: '12', cbsRate: '8.8', ibsRate: '17.7', reduction: '0', creditablePurchases: '80', simulationYear: '2033', taxRegime: 'NORMAL', sector: 'GERAL', purchaseDocumentIds: [] };
 const money = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const pct = (n: number | null) => n === null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
 
 function getTransition(year: number) {
   if (year <= 2026) return { cbsMult: 0.1, ibsMult: 0.01, currentMult: 1.0 };
@@ -93,6 +93,24 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
   return { currentTax: finalCurrentTax, nominalReformRate: finalCbs + finalIbs, effectiveReformRate, grossReformTax: regime === 'SIMPLES_DAS' ? 0 : grossReformTax, eligiblePurchaseBase: purchases * creditable / 100, estimatedCredits: finalCredits, netReformTax: finalNetReformTax, difference, differencePercent: originalTax ? difference / originalTax * 100 : null, estimatedMarginBeforeTax: revenue - purchases, estimatedMarginAfterCurrentTax: revenue - purchases - originalTax, estimatedMarginAfterReformTax: revenue - purchases - (finalCurrentTax + finalNetReformTax), creditTransferredToB2B: creditTransferred, methodology: doc ? 'Prévia local.' : 'Estimativa manual', isDocumentSimulation: !!doc, hasRealPurchases: hasReals, itemsCalculated };
 }
 
+// Componente para estilizar os Tooltips do Gráfico
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: '#fff', padding: '12px', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+        <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#111827' }}>Ano da Lei: {label}</p>
+        {payload.map((entry: any, index: number) => (
+          <div key={index} style={{ display: 'flex', justifyContent: 'space-between', gap: '15px', fontSize: '13px', marginBottom: '4px' }}>
+            <span style={{ color: entry.color, fontWeight: 500 }}>{entry.name}:</span>
+            <span style={{ fontWeight: 'bold', color: '#374151' }}>{money(entry.value)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function SimulatorPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState('');
@@ -111,6 +129,21 @@ export default function SimulatorPage() {
   const selectedPurchaseDocs = useMemo(() => documents.filter(d => inputs.purchaseDocumentIds.includes(d.id)), [documents, inputs.purchaseDocumentIds]);
   const results = useMemo(() => estimate(inputs, selectedDoc, selectedPurchaseDocs), [inputs, selectedDoc, selectedPurchaseDocs]);
 
+  // GERAÇÃO DE DADOS PARA O GRÁFICO (Calcula a projeção de 2026 a 2033)
+  const chartData = useMemo(() => {
+    const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033];
+    return years.map(y => {
+      const yearInputs = { ...inputs, simulationYear: String(y) };
+      const res = estimate(yearInputs, selectedDoc, selectedPurchaseDocs);
+      return {
+        year: String(y),
+        "Imposto Antigo": res.currentTax,
+        "CBS/IBS a Pagar": res.netReformTax,
+        "Carga Tributária Total": res.currentTax + res.netReformTax
+      };
+    });
+  }, [inputs, selectedDoc, selectedPurchaseDocs]);
+
   const load = useCallback(async (preferred?: string) => {
     setLoading(true); setError('');
     try {
@@ -125,7 +158,7 @@ export default function SimulatorPage() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao carregar.'); } finally { setLoading(false); }
   }, [organizationId]);
 
-  useEffect(() => { if (!window.localStorage.getItem('reforma360_access_token')) { window.location.href = '/'; return; } void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!window.localStorage.getItem('reforma360_access_token')) { window.location.href = '/'; return; } void load(); }, [load]);
   
   const update = (key: keyof Inputs, value: any) => setInputs(prev => ({ ...prev, [key]: value }));
   
@@ -147,8 +180,7 @@ export default function SimulatorPage() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao salvar.'); } finally { setSaving(false); }
   }
 
-const displayItems = results.itemsCalculated;
-
+  const displayItems = results.itemsCalculated;
   const hasRealPurchases = inputs.purchaseDocumentIds.length > 0;
 
   return <main className="dashboard-shell sim-page" style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -266,9 +298,36 @@ const displayItems = results.itemsCalculated;
 
         <div className="sim-results" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="sim-result-hero" style={{ background: '#1e293b', color: '#fff', padding: '25px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <span style={{ fontSize: '14px', color: '#94a3b8' }}>Impacto Final Estimado (Ano vs Reforma)</span>
+            <span style={{ fontSize: '14px', color: '#94a3b8' }}>Impacto Final Estimado (Ano {inputs.simulationYear})</span>
             <strong style={{ fontSize: '36px', color: results.difference > 0 ? '#fca5a5' : '#86efac' }}>{money(results.difference)}</strong>
             <small style={{ color: '#cbd5e1' }}>{results.difference > 0 ? 'Aumento estimado no total de impostos' : results.difference < 0 ? 'Redução estimada no total de impostos' : 'Sem diferença no volume financeiro'}</small>
+          </div>
+          
+          {/* SECÇÃO DO GRÁFICO (RECHARTS) */}
+          <div className="sim-card" style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+              <div style={{ background: '#f4f4f5', padding: '8px', borderRadius: '8px', color: '#52525b' }}><BarChart3 size={18}/></div>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#111827' }}>Evolução da Carga Tributária</h3>
+            </div>
+            
+            <div style={{ width: '100%', height: '280px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{fill: '#6b7280', fontSize: 12}} dy={10} />
+                  <YAxis hide domain={['auto', 'auto']} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '15px' }} />
+                  
+                  {/* Linha representando o total a pagar de impostos ao longo dos anos */}
+                  <Line type="monotone" dataKey="Carga Tributária Total" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                  
+                  {/* Barras Empilhadas mostrando a composição do imposto */}
+                  <Bar dataKey="Imposto Antigo" stackId="a" fill="#94a3b8" radius={[0, 0, 4, 4]} />
+                  <Bar dataKey="CBS/IBS a Pagar" stackId="a" fill="#1446b3" radius={[4, 4, 0, 0]} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           </div>
           
           <div className="sim-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>

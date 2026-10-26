@@ -2,6 +2,7 @@
 
 import { ChangeEvent, DragEvent, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import JSZip from 'jszip';
 import {
   ArrowLeft, AlertTriangle, CheckCircle2, Clock3, FileCode2, FileSearch,
   FileText, FileUp, RefreshCw, Search, ShieldCheck, UploadCloud, X,
@@ -17,6 +18,7 @@ type FiscalDocument = {
   items: FiscalItem[] | null; createdAt: string;
 };
 type ImportResult = { name: string; ok: boolean; message: string };
+
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -30,6 +32,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Não foi possível concluir a operação.');
   return data as T;
 }
+
 const currency = (value: string | number | null) => value == null ? '—' : Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const date = (value: string | null) => value ? new Date(value).toLocaleDateString('pt-BR') : '—';
 const isTextFile = (fileName: string) => fileName.toLowerCase().endsWith('.txt');
@@ -61,38 +64,80 @@ export default function XmlPage() {
     finally { setLoading(false); }
   }, [organizationId]);
 
-  useEffect(() => { if (!window.localStorage.getItem('reforma360_access_token')) { window.location.href = '/'; return; } void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!window.localStorage.getItem('reforma360_access_token')) { window.location.href = '/'; return; } void load(); }, [load]);
 
   const importFiles = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList);
     if (!files.length) return;
     if (!organizationId) { setError('Selecione uma organização antes de importar.'); return; }
-    const allowed = files.filter(file => /\.(xml|txt)$/i.test(file.name));
-    const rejected = files.filter(file => !/\.(xml|txt)$/i.test(file.name));
-    const initialResults: ImportResult[] = rejected.map(file => ({ name: file.name, ok: false, message: 'Formato não suportado. Use XML ou TXT.' }));
-    setResults(initialResults); setBusy(true); setError(''); setNotice('');
-    let succeeded = 0;
-    for (const file of allowed) {
-      if (file.size > MAX_FILE_SIZE) {
-        initialResults.push({ name: file.name, ok: false, message: 'Arquivo maior que 5 MB.' });
-        setResults([...initialResults]);
-        continue;
+    
+    setBusy(true); setError(''); setNotice('');
+    
+    const initialResults: ImportResult[] = [];
+    const filesToProcess: { name: string; content: string }[] = [];
+    
+    // Fase 1: Ler e extrair ficheiros (lidando com .xml, .txt e descompactando .zip)
+    for (const file of files) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      
+      if (ext === 'zip') {
+        try {
+          const zip = new JSZip();
+          const loadedZip = await zip.loadAsync(file);
+          const zipEntries = Object.values(loadedZip.files);
+          
+          let extractedCount = 0;
+          for (const entry of zipEntries) {
+            // Ignorar pastas e ficheiros ocultos do macOS
+            if (entry.dir || entry.name.includes('__MACOSX') || entry.name.startsWith('.')) continue;
+            
+            const entryExt = entry.name.split('.').pop()?.toLowerCase();
+            if (entryExt === 'xml' || entryExt === 'txt') {
+              const content = await entry.async('string');
+              // Guardar apenas o nome do ficheiro, ignorando a estrutura de pastas do zip
+              const cleanName = entry.name.split('/').pop() || entry.name;
+              filesToProcess.push({ name: cleanName, content });
+              extractedCount++;
+            }
+          }
+          if (extractedCount === 0) {
+            initialResults.push({ name: file.name, ok: false, message: 'Nenhum XML ou TXT encontrado dentro do ZIP.' });
+          }
+        } catch (e) {
+          initialResults.push({ name: file.name, ok: false, message: 'Erro ao descompactar o ficheiro ZIP.' });
+        }
+      } else if (ext === 'xml' || ext === 'txt') {
+        if (file.size > MAX_FILE_SIZE) {
+          initialResults.push({ name: file.name, ok: false, message: 'Arquivo maior que 5 MB.' });
+        } else {
+          const content = await file.text();
+          filesToProcess.push({ name: file.name, content });
+        }
+      } else {
+        initialResults.push({ name: file.name, ok: false, message: 'Formato não suportado. Use XML, TXT ou ZIP.' });
       }
+    }
+
+    setResults([...initialResults]);
+
+    // Fase 2: Enviar todos os ficheiros processados para a API (em sequência para não sobrecarregar)
+    let succeeded = 0;
+    for (const fileObj of filesToProcess) {
       try {
-        const content = await file.text();
         const result = await request<FiscalDocument>('/fiscal-documents/import', {
-          method: 'POST', body: JSON.stringify({ organizationId, fileName: file.name, xml: content }),
+          method: 'POST', body: JSON.stringify({ organizationId, fileName: fileObj.name, xml: fileObj.content }),
         });
         succeeded++;
-        initialResults.push({ name: file.name, ok: true, message: isTextFile(file.name) ? 'Texto anexado para revisão.' : result.status === 'REVIEW' ? 'Importado com pontos para revisar.' : 'XML processado.' });
+        initialResults.push({ name: fileObj.name, ok: true, message: isTextFile(fileObj.name) ? 'Texto anexado para revisão.' : result.status === 'REVIEW' ? 'Importado com pontos para revisar.' : 'XML processado.' });
       } catch (e) {
-        initialResults.push({ name: file.name, ok: false, message: e instanceof Error ? e.message : 'Falha ao importar arquivo.' });
+        initialResults.push({ name: fileObj.name, ok: false, message: e instanceof Error ? e.message : 'Falha ao importar arquivo.' });
       }
       setResults([...initialResults]);
     }
+
     setBusy(false);
-    if (succeeded) setNotice(`${succeeded} de ${allowed.length} arquivo(s) importado(s) com sucesso.`);
-    if (!allowed.length && rejected.length) setError('Nenhum arquivo compatível foi selecionado.');
+    if (succeeded) setNotice(`${succeeded} arquivo(s) importado(s) com sucesso.`);
+    if (filesToProcess.length === 0 && initialResults.length > 0) setError('Nenhum ficheiro processado. Verifique os resultados.');
     await load(organizationId);
   };
 
@@ -101,16 +146,19 @@ export default function XmlPage() {
     if (files) void importFiles(files);
     event.target.value = '';
   };
+  
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault(); setDragging(false);
     if (event.dataTransfer.files.length) void importFiles(event.dataTransfer.files);
   };
+  
   const filteredDocuments = documents.filter(doc => {
     const term = search.trim().toLocaleLowerCase('pt-BR');
     const matchesTerm = !term || [doc.fileName, doc.documentNumber, doc.issuerName, doc.issuerTaxId, doc.recipientName].some(v => v?.toLocaleLowerCase('pt-BR').includes(term));
     const matchesFilter = filter === 'ALL' || (filter === 'REVIEW' ? doc.status === 'REVIEW' : filter === 'PROCESSED' ? doc.status !== 'REVIEW' : filter === 'TEXT' ? doc.documentType === 'TEXT' : doc.documentType !== 'TEXT');
     return matchesTerm && matchesFilter;
   });
+  
   const totalValue = documents.reduce((sum, doc) => sum + (doc.documentType === 'TEXT' ? 0 : Number(doc.totalAmount || 0)), 0);
   const reviewCount = documents.filter(doc => doc.status === 'REVIEW').length;
   const xmlCount = documents.filter(doc => doc.documentType !== 'TEXT').length;
@@ -133,16 +181,16 @@ export default function XmlPage() {
       </div>
 
       <section className="xml-upload-card">
-        <div className="xml-section-heading"><div><span className="xml-section-kicker">CENTRAL DE IMPORTAÇÃO</span><h2>Adicione seus arquivos</h2><p>Arraste arquivos para a área abaixo ou selecione no computador.</p></div><span className="xml-heading-file-icon"><UploadCloud size={23}/></span></div>
+        <div className="xml-section-heading"><div><span className="xml-section-kicker">CENTRAL DE IMPORTAÇÃO</span><h2>Adicione seus arquivos</h2><p>Arraste arquivos ou ficheiros ZIP para a área abaixo.</p></div><span className="xml-heading-file-icon"><UploadCloud size={23}/></span></div>
         <div className={`xml-dropzone ${dragging ? 'is-dragging' : ''} ${busy ? 'is-busy' : ''}`} onDragEnter={e => { e.preventDefault(); setDragging(true); }} onDragOver={e => e.preventDefault()} onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false); }} onDrop={onDrop}>
-          <div className="xml-upload-symbol"><UploadCloud size={29}/></div><h3>{busy ? 'Importando seus arquivos…' : dragging ? 'Solte os arquivos aqui' : 'Arraste e solte seus arquivos aqui'}</h3><p>Formatos aceitos: <b>.XML</b> para leitura fiscal e <b>.TXT</b> para anexar conteúdo textual.</p>
-          <button type="button" className="btn btn-primary xml-select-button" onClick={() => fileInput.current?.click()} disabled={busy || !organizationId}><FileUp size={16}/>{busy ? 'Processando arquivos…' : 'Selecionar arquivos'}</button>
-          <input ref={fileInput} type="file" multiple accept=".xml,.txt,text/xml,application/xml,text/plain" onChange={onFileChange} disabled={busy || !organizationId} className="xml-hidden-input" />
-          <div className="xml-upload-hints"><span><CheckCircle2 size={14}/> Até 5 MB por arquivo</span><span><ShieldCheck size={14}/> Acesso por organização</span><span><FileCode2 size={14}/> XML de NF-e modelo 55</span></div>
+          <div className="xml-upload-symbol"><UploadCloud size={29}/></div><h3>{busy ? 'Processando os seus arquivos… (Aguarde)' : dragging ? 'Solte os arquivos aqui' : 'Arraste e solte seus arquivos ou ZIP aqui'}</h3><p>Formatos aceitos: <b>.XML</b>, <b>.TXT</b> ou pastas compactadas <b>.ZIP</b> com centenas de notas.</p>
+          <button type="button" className="btn btn-primary xml-select-button" onClick={() => fileInput.current?.click()} disabled={busy || !organizationId}><FileUp size={16}/>{busy ? 'Extraindo e importando...' : 'Selecionar arquivos'}</button>
+          <input ref={fileInput} type="file" multiple accept=".xml,.txt,.zip,application/zip,application/x-zip-compressed,text/xml,application/xml,text/plain" onChange={onFileChange} disabled={busy || !organizationId} className="xml-hidden-input" />
+          <div className="xml-upload-hints"><span><CheckCircle2 size={14}/> Extração automática de Lotes (ZIP)</span><span><ShieldCheck size={14}/> Acesso por organização</span><span><FileCode2 size={14}/> XML de NF-e modelo 55</span></div>
         </div>
         {!organizationId && <p className="xml-inline-help">Selecione uma organização para habilitar a importação.</p>}
-        {results.length > 0 && <div className="xml-import-results"><div className="xml-results-title"><strong>Resultado da importação</strong><button className="xml-clear-results" onClick={() => setResults([])}>Limpar</button></div>{results.map((item, index) => <div className="xml-result-row" key={`${item.name}-${index}`}><span className={`xml-result-mark ${item.ok ? 'ok' : 'fail'}`}>{item.ok ? <CheckCircle2 size={16}/> : <AlertTriangle size={16}/>}</span><div className="xml-result-copy"><strong>{item.name}</strong><span>{item.message}</span></div></div>)}</div>}
-        <div className="xml-format-note"><FileText size={17}/><p><b>Sobre arquivos TXT:</b> o conteúdo é armazenado como material de apoio e marcado para revisão manual. A extração automática de campos fiscais é realizada nesta etapa para XML de NF-e.</p></div>
+        {results.length > 0 && <div className="xml-import-results"><div className="xml-results-title"><strong>Resultado da importação</strong><button className="xml-clear-results" onClick={() => setResults([])}>Limpar</button></div><div style={{maxHeight: '300px', overflowY: 'auto'}}>{results.map((item, index) => <div className="xml-result-row" key={`${item.name}-${index}`}><span className={`xml-result-mark ${item.ok ? 'ok' : 'fail'}`}>{item.ok ? <CheckCircle2 size={16}/> : <AlertTriangle size={16}/>}</span><div className="xml-result-copy"><strong>{item.name}</strong><span>{item.message}</span></div></div>)}</div></div>}
+        <div className="xml-format-note"><FileText size={17}/><p><b>Dica de Produtividade:</b> Para centenas de notas, coloque todos os XMLs numa pasta, comprima-a num ficheiro `.zip` e arraste para aqui. O sistema extrai e importa todos de uma só vez.</p></div>
       </section>
 
       <section className="xml-documents-card">

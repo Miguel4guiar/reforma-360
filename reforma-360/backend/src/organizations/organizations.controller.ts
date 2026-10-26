@@ -29,4 +29,10 @@ export class OrganizationsController {
   clearData(@Req() req: Request & { user: { id: string } }, @Param('id') id: string) {
     return this.organizationsService.clearData(req.user.id, id);
   }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Apaga a organização e todos os seus dados permanentemente' })
+  remove(@Req() req: Request & { user: { id: string } }, @Param('id') id: string) {
+    return this.organizationsService.remove(req.user.id, id);
+  }
 }

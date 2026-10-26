@@ -67,6 +67,9 @@ export default function Home() {
   const [taxRegime, setTaxRegime] = useState('NAO_INFORMADO');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  
+  // Novo estado para controlar as pendências do checklist
+  const [pendingChecklistCount, setPendingChecklistCount] = useState(0);
 
   const selectedOrganization = organizations.find(o => o.id === organizationId);
   const filteredCompanies = useMemo(() => companies.filter(c => `${c.name} ${c.taxId} ${c.city || ''} ${c.state || ''}`.toLowerCase().includes(search.toLowerCase())), [companies, search]);
@@ -105,12 +108,34 @@ export default function Home() {
   
   useEffect(() => { if (authReady && authenticated) void refresh(); }, [authReady, authenticated, refresh]);
   
+  // Atualiza as empresas e a contagem de pendências do checklist sempre que a organização muda
   useEffect(() => {
-    if (!organizationId || apiStatus !== 'online') { setCompanies([]); return; }
+    if (!organizationId || apiStatus !== 'online') { 
+      setCompanies([]); 
+      setPendingChecklistCount(0);
+      return; 
+    }
+    
     let active = true;
+    
+    // Busca as empresas
     apiRequest<Company[]>(`/companies?organizationId=${encodeURIComponent(organizationId)}`)
       .then(data => { if (active) setCompanies(data); })
       .catch(e => { if (active) setError(e instanceof Error ? e.message : 'Erro ao listar empresas.'); });
+      
+    // Busca os itens do checklist para calcular as pendências
+    apiRequest<any[]>(`/checklist?organizationId=${encodeURIComponent(organizationId)}`)
+      .then(data => {
+        if (active && Array.isArray(data)) {
+          // Filtra os itens que não estão concluídos (ajusta-se a status ou isCompleted)
+          const pending = data.filter(item => item.status !== 'COMPLETED' && !item.isCompleted);
+          setPendingChecklistCount(pending.length);
+        }
+      })
+      .catch(() => {
+        if (active) setPendingChecklistCount(0); // Em caso de erro, assume 0 pendências para não quebrar o layout
+      });
+
     return () => { active = false; };
   }, [organizationId, apiStatus]);
 
@@ -246,7 +271,20 @@ export default function Home() {
         
         <div className="stats">
           <div className="card"><div className="stat-top">Empresas cadastradas <span className="stat-icon"><Building2 size={17}/></span></div><div className="stat-value">{loading ? '…' : companies.length}</div><div className="stat-note">{selectedOrganization ? `Em ${selectedOrganization.name}` : 'Cadastre uma organização para começar'}</div></div>
-          <div className="card"><div className="stat-top">Pendências em aberto <span className="stat-icon"><ListTodo size={17}/></span></div><div className="stat-value">3</div><div className="stat-note"><Link href="/checklist" style={{color:'var(--brand)', textDecoration:'none', fontWeight:500}}>Abrir checklist de adequação</Link></div></div>
+          
+          {/* Contador de Pendências Dinâmico */}
+          <div className="card">
+            <div className="stat-top">Pendências em aberto <span className="stat-icon"><ListTodo size={17}/></span></div>
+            <div className="stat-value">{loading ? '…' : selectedOrganization ? pendingChecklistCount : 0}</div>
+            <div className="stat-note">
+              {selectedOrganization ? (
+                <Link href="/checklist" style={{color:'var(--brand)', textDecoration:'none', fontWeight:500}}>Abrir checklist de adequação</Link>
+              ) : (
+                'Sem organização ativa'
+              )}
+            </div>
+          </div>
+          
           <div className="card"><div className="stat-top">Auditoria e Créditos <span className="stat-icon"><WalletCards size={17}/></span></div><div className="stat-value" style={{color: '#16a34a'}}>Ativo</div><div className="stat-note"><Link href="/creditos" style={{color:'var(--brand)', textDecoration:'none', fontWeight:500}}>Acessar carteira XML</Link></div></div>
           <div className="card"><div className="stat-top">Status da Plataforma <span className="stat-icon"><Gauge size={17}/></span></div><div className="stat-value" style={{fontSize:22}}>{apiStatus === 'checking' ? 'Verificando' : apiStatus === 'online' ? 'Conectada' : 'Offline'}</div><div className="stat-note">{health ? `${health.service} · v${health.version}` : apiStatus === 'offline' ? 'Confira o backend e a conexão' : 'Testando conexão com o backend'}</div></div>
         </div>
