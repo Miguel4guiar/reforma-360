@@ -51,7 +51,6 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
   const finalReduction = Math.max(manualReduction, sectorReduction);
   
   const creditable = hasReals ? 100 : Math.min(100, Math.max(0, Number(v.creditablePurchases) || 0));
-  
   const trans = getTransition(Number(v.simulationYear));
   const regime = String(v.taxRegime || 'NORMAL');
   
@@ -59,38 +58,65 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
   const finalIbs = ibs * trans.ibsMult;
   const effectiveReformRate = (finalCbs + finalIbs) * (1 - finalReduction / 100);
   const grossReformTax = revenue * effectiveReformRate / 100;
+
+  // NOVO: Lê os impostos exatos do XML para construir a prévia em tempo real
+  let totalRealIcms = 0, totalRealPis = 0, totalRealCofins = 0;
+  if (doc && doc.items) {
+    doc.items.forEach(item => {
+      totalRealIcms += Number(item.vICMS || 0);
+      totalRealPis += Number(item.vPIS || 0);
+      totalRealCofins += Number(item.vCOFINS || 0);
+    });
+  }
+  const totalRealOriginalTax = totalRealIcms + totalRealPis + totalRealCofins;
+  const calculatedManualTax = revenue * currentRateBase / 100;
+  
+  // O sistema decide: se há imposto real no XML, usa-o. Senão, recai nos 12%.
+  const originalTax = totalRealOriginalTax > 0 ? totalRealOriginalTax : calculatedManualTax;
   
   let finalCurrentTax = 0, finalNetReformTax = 0, finalCredits = 0, creditTransferred = 0;
 
   if (regime === 'SIMPLES_DAS') {
-    finalCurrentTax = revenue * currentRateBase / 100;
+    finalCurrentTax = calculatedManualTax;
     creditTransferred = finalCurrentTax * 0.33; 
   } else if (regime === 'SIMPLES_POR_FORA') {
-    finalCurrentTax = revenue * (currentRateBase * 0.67) / 100; 
+    finalCurrentTax = calculatedManualTax * 0.67; 
     finalCredits = (purchases * creditable / 100) * effectiveReformRate / 100;
     finalNetReformTax = Math.max(0, grossReformTax - finalCredits);
     creditTransferred = grossReformTax; 
   } else {
-    finalCurrentTax = revenue * (currentRateBase * trans.currentMult) / 100;
+    finalCurrentTax = originalTax * trans.currentMult;
     finalCredits = (purchases * creditable / 100) * effectiveReformRate / 100;
     finalNetReformTax = Math.max(0, grossReformTax - finalCredits);
     creditTransferred = grossReformTax;
   }
   
-  const originalTax = revenue * currentRateBase / 100;
   const difference = (finalCurrentTax + finalNetReformTax) - originalTax;
   
   const itemsCalculated = doc?.items?.map(item => {
     const itemTotal = Number(item.total || 0);
+    const itemRealTax = Number(item.vICMS || 0) + Number(item.vPIS || 0) + Number(item.vCOFINS || 0);
+    
     return {
       description: item.description || 'Produto', ncm: String(item.ncm || '0').padStart(8, '0'), total: item.total,
-      currentTax: itemTotal * currentRateBase / 100, cbsTax: itemTotal * finalCbs / 100 * (1 - finalReduction / 100),
+      currentTax: itemRealTax > 0 ? itemRealTax : itemTotal * currentRateBase / 100, 
+      cbsTax: itemTotal * finalCbs / 100 * (1 - finalReduction / 100),
       ibsTax: itemTotal * finalIbs / 100 * (1 - finalReduction / 100), grossReformTax: itemTotal * effectiveReformRate / 100,
       appliedRules: { isReduced: finalReduction > 0, ruleDescription: `Redução Setor/Manual (${finalReduction}%)` }
     };
   });
 
-  return { currentTax: finalCurrentTax, nominalReformRate: finalCbs + finalIbs, effectiveReformRate, grossReformTax: regime === 'SIMPLES_DAS' ? 0 : grossReformTax, eligiblePurchaseBase: purchases * creditable / 100, estimatedCredits: finalCredits, netReformTax: finalNetReformTax, difference, differencePercent: originalTax ? difference / originalTax * 100 : null, estimatedMarginBeforeTax: revenue - purchases, estimatedMarginAfterCurrentTax: revenue - purchases - originalTax, estimatedMarginAfterReformTax: revenue - purchases - (finalCurrentTax + finalNetReformTax), creditTransferredToB2B: creditTransferred, methodology: doc ? 'Prévia local.' : 'Estimativa manual', isDocumentSimulation: !!doc, hasRealPurchases: hasReals, itemsCalculated };
+  return { 
+    currentTax: finalCurrentTax, nominalReformRate: finalCbs + finalIbs, effectiveReformRate, 
+    grossReformTax: regime === 'SIMPLES_DAS' ? 0 : grossReformTax, eligiblePurchaseBase: purchases * creditable / 100, 
+    estimatedCredits: finalCredits, netReformTax: finalNetReformTax, difference, 
+    differencePercent: originalTax ? difference / originalTax * 100 : null, 
+    estimatedMarginBeforeTax: revenue - purchases, estimatedMarginAfterCurrentTax: revenue - purchases - originalTax, 
+    estimatedMarginAfterReformTax: revenue - purchases - (finalCurrentTax + finalNetReformTax), 
+    creditTransferredToB2B: creditTransferred, methodology: doc ? 'Prévia local.' : 'Estimativa manual', 
+    isDocumentSimulation: !!doc, hasRealPurchases: hasReals, itemsCalculated,
+    originalTaxBreakdown: totalRealOriginalTax > 0 ? { icms: totalRealIcms, pis: totalRealPis, cofins: totalRealCofins, total: totalRealOriginalTax } : undefined
+  };
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
