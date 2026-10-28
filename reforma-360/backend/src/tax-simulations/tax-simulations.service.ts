@@ -14,7 +14,7 @@ type Inputs = {
   purchaseDocumentIds?: string[];
   simulationYear?: number;
   taxRegime?: 'NORMAL' | 'SIMPLES_DAS' | 'SIMPLES_POR_FORA';
-  sector?: 'GERAL' | 'PROFISSIONAL_LIBERAL' | 'SAUDE_EDUCACAO'; // Novo campo de Setor
+  sector?: 'GERAL' | 'PROFISSIONAL_LIBERAL' | 'SAUDE_EDUCACAO';
 };
 
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -70,8 +70,6 @@ export class TaxSimulationsService {
     
     const trans = getTransition(inputs.simulationYear!);
     const sectorReduction = getSectorReduction(inputs.sector);
-    
-    // O sistema aplica a maior redução (Setor vs Produto) para não duplicar benefícios
     const finalReduction = Math.max(inputs.reduction, sectorReduction);
     
     const nominalReformRate = (inputs.cbsRate * trans.cbsMult) + (inputs.ibsRate * trans.ibsMult);
@@ -167,18 +165,29 @@ export class TaxSimulationsService {
     // CÁLCULO DAS VENDAS
     const items = (doc.items as any[]) || [];
     const docRevenue = Number(doc.totalAmount || 0);
+    
     let totalGrossReform = 0, totalCbs = 0, totalIbs = 0;
+    let totalRealIcms = 0, totalRealPis = 0, totalRealCofins = 0; // Acumuladores dos impostos reais
 
     const itemsCalculated = items.map((item: any) => {
       const itemTotal = Number(item.total || 0);
       const ncm = String(item.ncm || '00000000').padStart(8, '0');
+      
+      // Captura os impostos reais processados pelo upload
+      const itemIcms = Number(item.vICMS || 0);
+      const itemPis = Number(item.vPIS || 0);
+      const itemCofins = Number(item.vCOFINS || 0);
+      const itemRealTax = itemIcms + itemPis + itemCofins;
+
+      totalRealIcms += itemIcms;
+      totalRealPis += itemPis;
+      totalRealCofins += itemCofins;
+
       let ncmReduction = 0;
       const matchedRule = ncmRules.find(rule => ncm.startsWith(rule.ncmPrefix));
       if (matchedRule) ncmReduction = Number(matchedRule.reductionPct);
       
-      // Maior benefício: NCM ou Setor
       const appliedReduction = Math.max(ncmReduction, sectorReduction);
-      
       const effectiveCbs = finalCbs * (1 - appliedReduction / 100);
       const effectiveIbs = finalIbs * (1 - appliedReduction / 100);
       const grossTax = round(itemTotal * (effectiveCbs + effectiveIbs) / 100);
@@ -191,10 +200,14 @@ export class TaxSimulationsService {
         ...item, ncm,
         appliedRules: { ufOrigin, ufDestination, cityDestination, isReduced: appliedReduction > 0, ruleDescription: matchedRule ? matchedRule.description : (sectorReduction > 0 ? `Redução de Setor (${sectorReduction}%)` : null) },
         cbsRateApplied: finalCbs, ibsRateApplied: finalIbs,
-        currentTax: round(itemTotal * numeric(body.inputs.currentRate, 'alíquota atual') / 100),
+        // Substituindo o cálculo cego pelo valor real do XML:
+        currentTax: itemRealTax > 0 ? round(itemRealTax) : round(itemTotal * numeric(body.inputs.currentRate, 'alíquota atual') / 100),
+        vICMS: itemIcms, vPIS: itemPis, vCOFINS: itemCofins,
         cbsTax: round(itemTotal * effectiveCbs / 100), ibsTax: round(itemTotal * effectiveIbs / 100), grossReformTax: grossTax,
       };
     });
+
+    const totalRealOriginalTax = round(totalRealIcms + totalRealPis + totalRealCofins);
 
     // CÁLCULO DAS COMPRAS REAIS
     let exactCreditsTotal = 0;
@@ -243,21 +256,24 @@ export class TaxSimulationsService {
       baseCredits = round((finalPurchasesVolume * creditablePurchases / 100) * averageEffectiveRate / 100);
     }
 
+    // Calcula o imposto original: usa o real (se existir) ou o manual (se o XML estiver zerado)
+    const calculatedManualTax = round(docRevenue * baseCurrentRate / 100);
+    const originalTax = totalRealOriginalTax > 0 ? totalRealOriginalTax : calculatedManualTax;
+
     let finalCurrentTax = 0, finalNetReformTax = 0, finalEstimatedCredits = 0, creditTransferred = 0;
 
     if (regime === 'SIMPLES_DAS') {
-      finalCurrentTax = round(docRevenue * baseCurrentRate / 100);
+      finalCurrentTax = calculatedManualTax;
       finalNetReformTax = 0;
       finalEstimatedCredits = 0;
       creditTransferred = round(finalCurrentTax * 0.33);
     } else if (regime === 'SIMPLES_POR_FORA' || regime === 'NORMAL') {
-      finalCurrentTax = regime === 'SIMPLES_POR_FORA' ? round(docRevenue * (baseCurrentRate * 0.67) / 100) : round(docRevenue * (baseCurrentRate * trans.currentMult) / 100);
+      finalCurrentTax = regime === 'SIMPLES_POR_FORA' ? round(calculatedManualTax * 0.67) : round(originalTax * trans.currentMult);
       finalEstimatedCredits = baseCredits;
       finalNetReformTax = round(Math.max(0, totalGrossReform - finalEstimatedCredits));
       creditTransferred = round(totalGrossReform);
     }
 
-    const originalTax = round(docRevenue * baseCurrentRate / 100);
     const difference = round((finalCurrentTax + finalNetReformTax) - originalTax);
 
     const results = {
@@ -274,6 +290,15 @@ export class TaxSimulationsService {
       estimatedMarginAfterReformTax: round(docRevenue - finalPurchasesVolume - (finalCurrentTax + finalNetReformTax)),
       creditTransferredToB2B: creditTransferred,
       methodology: `Setor: ${sector}. Regime: ${regime}. Créditos: ${hasRealPurchases ? 'Exatos via XML' : 'Estimativa'}.`,
+      
+      // NOVA ABA: O detalhe exato do imposto antigo para mostrarmos no visual Antes/Depois
+      originalTaxBreakdown: {
+        icms: round(totalRealIcms),
+        pis: round(totalRealPis),
+        cofins: round(totalRealCofins),
+        total: originalTax
+      },
+      
       itemsCalculated
     };
 
