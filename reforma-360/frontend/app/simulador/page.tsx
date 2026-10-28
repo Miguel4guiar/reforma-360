@@ -2,19 +2,39 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Calculator, CheckCircle2, Save, Receipt, LayoutList, Zap, Award, ShoppingBag, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Calculator, CheckCircle2, Save, Receipt, LayoutList, Zap, Award, ShoppingBag, BarChart3, FileText } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
 type Organization = { id: string; name: string };
 type FiscalDocument = { id: string; fileName: string; documentNumber: string | null; documentType: string; status: string; totalAmount: string | number | null; items: any[] };
 type Inputs = { revenue: string; purchases: string; currentRate: string; cbsRate: string; ibsRate: string; reduction: string; creditablePurchases: string; documentId?: string; purchaseDocumentIds: string[]; simulationYear: string; taxRegime: string; sector: string };
 type ItemResult = { description: string; ncm: string; total: string; currentTax: number; cbsTax: number; ibsTax: number; grossReformTax: number; appliedRules?: { isReduced: boolean; ruleDescription?: string } };
-type Results = { currentTax: number; nominalReformRate: number; effectiveReformRate: number; grossReformTax: number; eligiblePurchaseBase: number; estimatedCredits: number; netReformTax: number; difference: number; differencePercent: number | null; estimatedMarginBeforeTax: number; estimatedMarginAfterCurrentTax: number; estimatedMarginAfterReformTax: number; creditTransferredToB2B: number; methodology: string; isDocumentSimulation?: boolean; hasRealPurchases?: boolean; originalTaxBreakdown?: { icms: number, pis: number, cofins: number, total: number }, itemsCalculated?: ItemResult[] };
+type Results = { 
+  currentTax: number; nominalReformRate: number; effectiveReformRate: number; grossReformTax: number; 
+  eligiblePurchaseBase: number; estimatedCredits: number; netReformTax: number; difference: number; 
+  differencePercent: number | null; estimatedMarginBeforeTax: number; estimatedMarginAfterCurrentTax: number; 
+  estimatedMarginAfterReformTax: number; creditTransferredToB2B: number; methodology: string; 
+  isDocumentSimulation?: boolean; hasRealPurchases?: boolean; 
+  originalTaxBreakdown?: { icms: number, pis: number, cofins: number, total: number }; 
+  cbsAmount: number; ibsAmount: number;
+  itemsCalculated?: ItemResult[] 
+};
 type Simulation = { id: string; name: string; inputs: Inputs; results: Results; createdAt: string };
 
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
 const defaults: Inputs = { revenue: '100000', purchases: '45000', currentRate: '12', cbsRate: '8.8', ibsRate: '17.7', reduction: '0', creditablePurchases: '80', simulationYear: '2033', taxRegime: 'NORMAL', sector: 'GERAL', purchaseDocumentIds: [] };
 const money = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const printStyles = `
+  @media print {
+    body { background: #fff !important; }
+    .topbar, .sim-form, .sim-mode-toggle, .pdf-hide { display: none !important; }
+    .sim-results { width: 100% !important; display: block !important; }
+    .page-content { padding: 0 !important; margin: 0 !important; }
+    .sim-card { break-inside: avoid; box-shadow: none !important; border: 1px solid #ddd !important; margin-bottom: 20px; page-break-inside: avoid; }
+    @page { size: A4 portrait; margin: 15mm; }
+  }
+`;
 
 function getTransition(year: number) {
   if (year <= 2026) return { cbsMult: 0.1, ibsMult: 0.01, currentMult: 1.0 };
@@ -59,7 +79,7 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
   const effectiveReformRate = (finalCbs + finalIbs) * (1 - finalReduction / 100);
   const grossReformTax = revenue * effectiveReformRate / 100;
 
-  // NOVO: Lê os impostos exatos do XML para construir a prévia em tempo real
+  // Prévia Local: Leitura dos impostos reais extraídos do XML
   let totalRealIcms = 0, totalRealPis = 0, totalRealCofins = 0;
   if (doc && doc.items) {
     doc.items.forEach(item => {
@@ -71,7 +91,6 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
   const totalRealOriginalTax = totalRealIcms + totalRealPis + totalRealCofins;
   const calculatedManualTax = revenue * currentRateBase / 100;
   
-  // O sistema decide: se há imposto real no XML, usa-o. Senão, recai nos 12%.
   const originalTax = totalRealOriginalTax > 0 ? totalRealOriginalTax : calculatedManualTax;
   
   let finalCurrentTax = 0, finalNetReformTax = 0, finalCredits = 0, creditTransferred = 0;
@@ -92,6 +111,9 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
   }
   
   const difference = (finalCurrentTax + finalNetReformTax) - originalTax;
+  
+  const cbsAmount = regime === 'SIMPLES_DAS' ? 0 : revenue * finalCbs / 100 * (1 - finalReduction / 100);
+  const ibsAmount = regime === 'SIMPLES_DAS' ? 0 : revenue * finalIbs / 100 * (1 - finalReduction / 100);
   
   const itemsCalculated = doc?.items?.map(item => {
     const itemTotal = Number(item.total || 0);
@@ -115,7 +137,8 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
     estimatedMarginAfterReformTax: revenue - purchases - (finalCurrentTax + finalNetReformTax), 
     creditTransferredToB2B: creditTransferred, methodology: doc ? 'Prévia local.' : 'Estimativa manual', 
     isDocumentSimulation: !!doc, hasRealPurchases: hasReals, itemsCalculated,
-    originalTaxBreakdown: totalRealOriginalTax > 0 ? { icms: totalRealIcms, pis: totalRealPis, cofins: totalRealCofins, total: totalRealOriginalTax } : undefined
+    originalTaxBreakdown: totalRealOriginalTax > 0 ? { icms: totalRealIcms, pis: totalRealPis, cofins: totalRealCofins, total: totalRealOriginalTax } : undefined,
+    cbsAmount, ibsAmount
   };
 }
 
@@ -150,14 +173,13 @@ export default function SimulatorPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   
-  // FILTRAGEM INTELIGENTE DE VENDAS E COMPRAS (Evita misturar as notas)
+  // Filtro Inteligente de Direção da Nota
   const salesDocs = useMemo(() => documents.filter(d => !d.items?.[0]?.operationType || d.items[0].operationType === 'SAIDA'), [documents]);
   const purchaseDocs = useMemo(() => documents.filter(d => !d.items?.[0]?.operationType || d.items[0].operationType === 'ENTRADA'), [documents]);
 
   const selectedDoc = useMemo(() => mode === 'DOCUMENT' ? documents.find(d => d.id === documentId) || null : null, [mode, documentId, documents]);
   const selectedPurchaseDocs = useMemo(() => documents.filter(d => inputs.purchaseDocumentIds.includes(d.id)), [documents, inputs.purchaseDocumentIds]);
   
-  // Usamos os resultados gravados no backend, ou estimamos em tempo real
   const activeSimulation = history.find(h => mode === 'DOCUMENT' ? h.inputs.documentId === documentId && h.inputs.simulationYear === inputs.simulationYear : false);
   const results = useMemo(() => activeSimulation ? activeSimulation.results : estimate(inputs, selectedDoc, selectedPurchaseDocs), [inputs, selectedDoc, selectedPurchaseDocs, activeSimulation]);
 
@@ -215,6 +237,7 @@ export default function SimulatorPage() {
   const hasRealPurchases = inputs.purchaseDocumentIds.length > 0;
 
   return <main className="dashboard-shell sim-page" style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
+    <style dangerouslySetInnerHTML={{ __html: printStyles }} />
     <header className="topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
       <Link href="/" className="brand" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: '#111827', fontWeight: 'bold' }}>
         <span className="brand-mark" style={{ background: '#1446b3', color: '#fff', padding: '5px 10px', borderRadius: '6px' }}>R</span>
@@ -328,12 +351,63 @@ export default function SimulatorPage() {
         </form>
 
         <div className="sim-results" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* BOTÃO DE EXPORTAR PDF */}
+          <div className="pdf-hide" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-10px' }}>
+            <button onClick={() => window.print()} className="btn btn-primary" style={{ padding: '8px 16px', background: '#111827', color: '#fff', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+              <FileText size={16}/> Exportar Relatório (PDF)
+            </button>
+          </div>
+
           <div className="sim-result-hero" style={{ background: '#1e293b', color: '#fff', padding: '25px', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
             <span style={{ fontSize: '14px', color: '#94a3b8' }}>Impacto Final Estimado (Ano {inputs.simulationYear})</span>
             <strong style={{ fontSize: '36px', color: results.difference > 0 ? '#fca5a5' : '#86efac' }}>{money(results.difference)}</strong>
             <small style={{ color: '#cbd5e1' }}>{results.difference > 0 ? 'Aumento estimado no total de impostos' : results.difference < 0 ? 'Redução estimada no total de impostos' : 'Sem diferença no volume financeiro'}</small>
           </div>
           
+          {/* NOVO PAINEL: MEMÓRIA DE CÁLCULO E ANTES/DEPOIS */}
+          <div className="sim-card" style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px' }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calculator size={18} color="#4b5563"/> Memória de Cálculo: O Antes e o Depois
+            </h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px' }}>
+              {/* O ANTES */}
+              <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 15px 0', color: '#475569', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cenário Antigo</h4>
+                {results.originalTaxBreakdown ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}><span>ICMS (Estadual)</span> <strong>{money(results.originalTaxBreakdown.icms)}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}><span>PIS (Federal)</span> <strong>{money(results.originalTaxBreakdown.pis)}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#334155' }}><span>COFINS (Federal)</span> <strong>{money(results.originalTaxBreakdown.cofins)}</strong></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', paddingTop: '10px', borderTop: '2px solid #cbd5e1', fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>
+                      <span>Total Antigo</span> <span>{money(results.originalTaxBreakdown.total)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>
+                    <span>Imposto Global (Estimado)</span> <span>{money(results.currentTax)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* O DEPOIS */}
+              <div style={{ background: '#f0fdfa', padding: '20px', borderRadius: '8px', border: '1px solid #ccfbf1' }}>
+                <h4 style={{ margin: '0 0 15px 0', color: '#0f766e', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Reforma Tributária</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#115e59' }}><span>IBS (Substitui ICMS/ISS)</span> <strong>{money(results.ibsAmount)}</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#115e59' }}><span>CBS (Substitui PIS/COFINS)</span> <strong>{money(results.cbsAmount)}</strong></div>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', marginTop: '5px' }}><span>(-) Créditos de Entrada</span> <strong>- {money(results.estimatedCredits)}</strong></div>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', paddingTop: '10px', borderTop: '2px solid #99f6e4', fontSize: '16px', fontWeight: 'bold', color: '#042f2e' }}>
+                    <span>Novo Total a Pagar</span> <span>{money(results.netReformTax)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* SECÇÃO DO GRÁFICO (RECHARTS) */}
           <div className="sim-card" style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
@@ -349,46 +423,12 @@ export default function SimulatorPage() {
                   <YAxis hide domain={['auto', 'auto']} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '15px' }} />
-                  
-                  {/* Linha representando o total a pagar de impostos ao longo dos anos */}
                   <Line type="monotone" dataKey="Carga Tributária Total" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
-                  
-                  {/* Barras Empilhadas mostrando a composição do imposto */}
                   <Bar dataKey="Imposto Antigo" stackId="a" fill="#94a3b8" radius={[0, 0, 4, 4]} />
                   <Bar dataKey="CBS/IBS a Pagar" stackId="a" fill="#1446b3" radius={[4, 4, 0, 0]} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
-          </div>
-          
-          <div className="sim-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-            <article style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-              <span style={{ display: 'block', fontSize: '13px', color: '#6b7280', marginBottom: '5px' }}>{inputs.taxRegime.includes('SIMPLES') ? 'Imposto Unificado (DAS)' : 'Imposto antigo'}</span>
-              <strong style={{ display: 'block', fontSize: '24px', color: '#111827' }}>{money(results.currentTax)}</strong>
-              {results.originalTaxBreakdown && (
-                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb', fontSize: '11px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{display: 'flex', justifyContent: 'space-between'}}><span>ICMS:</span> <span>{money(results.originalTaxBreakdown.icms)}</span></div>
-                  <div style={{display: 'flex', justifyContent: 'space-between'}}><span>PIS:</span> <span>{money(results.originalTaxBreakdown.pis)}</span></div>
-                  <div style={{display: 'flex', justifyContent: 'space-between'}}><span>COFINS:</span> <span>{money(results.originalTaxBreakdown.cofins)}</span></div>
-                </div>
-              )}
-            </article>
-            
-            <article style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-              <span style={{ display: 'block', fontSize: '13px', color: '#6b7280', marginBottom: '5px' }}>CBS + IBS brutos</span>
-              <strong style={{ display: 'block', fontSize: '24px', color: '#111827' }}>{money(results.grossReformTax)}</strong>
-            </article>
-            
-            <article style={{ background: results.hasRealPurchases ? '#f0fdf4' : '#fff', padding: '20px', borderRadius: '12px', border: results.hasRealPurchases ? '1px solid #4ade80' : '1px solid #e5e7eb' }}>
-              <span style={{ display: 'block', fontSize: '13px', color: results.hasRealPurchases ? '#166534' : '#6b7280', marginBottom: '5px' }}>Créditos de Entrada</span>
-              <strong style={{ display: 'block', fontSize: '24px', color: results.hasRealPurchases ? '#15803d' : '#111827' }}>{money(results.estimatedCredits)}</strong>
-              {results.hasRealPurchases && <small style={{ display: 'block', marginTop: '5px', fontSize: '11px', color: '#166534', fontWeight: 600 }}>CÁLCULO EXATO VIA XML</small>}
-            </article>
-            
-            <article style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-              <span style={{ display: 'block', fontSize: '13px', color: '#6b7280', marginBottom: '5px' }}>CBS + IBS a pagar</span>
-              <strong style={{ display: 'block', fontSize: '24px', color: '#111827' }}>{money(results.netReformTax)}</strong>
-            </article>
           </div>
 
           <div className="sim-card" style={{ background: 'linear-gradient(to right, #fbf7ef, #fff)', border: '1px solid #eaddc0', borderRadius: '12px', padding: '20px', display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
