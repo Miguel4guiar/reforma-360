@@ -9,7 +9,7 @@ type Organization = { id: string; name: string };
 type FiscalDocument = { id: string; fileName: string; documentNumber: string | null; documentType: string; status: string; totalAmount: string | number | null; items: any[] };
 type Inputs = { revenue: string; purchases: string; currentRate: string; cbsRate: string; ibsRate: string; reduction: string; creditablePurchases: string; documentId?: string; purchaseDocumentIds: string[]; simulationYear: string; taxRegime: string; sector: string };
 type ItemResult = { description: string; ncm: string; total: string; currentTax: number; cbsTax: number; ibsTax: number; grossReformTax: number; appliedRules?: { isReduced: boolean; ruleDescription?: string } };
-type Results = { currentTax: number; nominalReformRate: number; effectiveReformRate: number; grossReformTax: number; eligiblePurchaseBase: number; estimatedCredits: number; netReformTax: number; difference: number; differencePercent: number | null; estimatedMarginBeforeTax: number; estimatedMarginAfterCurrentTax: number; estimatedMarginAfterReformTax: number; creditTransferredToB2B: number; methodology: string; isDocumentSimulation?: boolean; hasRealPurchases?: boolean; itemsCalculated?: ItemResult[] };
+type Results = { currentTax: number; nominalReformRate: number; effectiveReformRate: number; grossReformTax: number; eligiblePurchaseBase: number; estimatedCredits: number; netReformTax: number; difference: number; differencePercent: number | null; estimatedMarginBeforeTax: number; estimatedMarginAfterCurrentTax: number; estimatedMarginAfterReformTax: number; creditTransferredToB2B: number; methodology: string; isDocumentSimulation?: boolean; hasRealPurchases?: boolean; originalTaxBreakdown?: { icms: number, pis: number, cofins: number, total: number }, itemsCalculated?: ItemResult[] };
 type Simulation = { id: string; name: string; inputs: Inputs; results: Results; createdAt: string };
 
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
@@ -93,7 +93,6 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
   return { currentTax: finalCurrentTax, nominalReformRate: finalCbs + finalIbs, effectiveReformRate, grossReformTax: regime === 'SIMPLES_DAS' ? 0 : grossReformTax, eligiblePurchaseBase: purchases * creditable / 100, estimatedCredits: finalCredits, netReformTax: finalNetReformTax, difference, differencePercent: originalTax ? difference / originalTax * 100 : null, estimatedMarginBeforeTax: revenue - purchases, estimatedMarginAfterCurrentTax: revenue - purchases - originalTax, estimatedMarginAfterReformTax: revenue - purchases - (finalCurrentTax + finalNetReformTax), creditTransferredToB2B: creditTransferred, methodology: doc ? 'Prévia local.' : 'Estimativa manual', isDocumentSimulation: !!doc, hasRealPurchases: hasReals, itemsCalculated };
 }
 
-// Componente para estilizar os Tooltips do Gráfico
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -125,11 +124,17 @@ export default function SimulatorPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   
+  // FILTRAGEM INTELIGENTE DE VENDAS E COMPRAS (Evita misturar as notas)
+  const salesDocs = useMemo(() => documents.filter(d => !d.items?.[0]?.operationType || d.items[0].operationType === 'SAIDA'), [documents]);
+  const purchaseDocs = useMemo(() => documents.filter(d => !d.items?.[0]?.operationType || d.items[0].operationType === 'ENTRADA'), [documents]);
+
   const selectedDoc = useMemo(() => mode === 'DOCUMENT' ? documents.find(d => d.id === documentId) || null : null, [mode, documentId, documents]);
   const selectedPurchaseDocs = useMemo(() => documents.filter(d => inputs.purchaseDocumentIds.includes(d.id)), [documents, inputs.purchaseDocumentIds]);
-  const results = useMemo(() => estimate(inputs, selectedDoc, selectedPurchaseDocs), [inputs, selectedDoc, selectedPurchaseDocs]);
+  
+  // Usamos os resultados gravados no backend, ou estimamos em tempo real
+  const activeSimulation = history.find(h => mode === 'DOCUMENT' ? h.inputs.documentId === documentId && h.inputs.simulationYear === inputs.simulationYear : false);
+  const results = useMemo(() => activeSimulation ? activeSimulation.results : estimate(inputs, selectedDoc, selectedPurchaseDocs), [inputs, selectedDoc, selectedPurchaseDocs, activeSimulation]);
 
-  // GERAÇÃO DE DADOS PARA O GRÁFICO (Calcula a projeção de 2026 a 2033)
   const chartData = useMemo(() => {
     const years = [2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033];
     return years.map(y => {
@@ -251,16 +256,16 @@ export default function SimulatorPage() {
                 <label className="sim-label" style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '14px', fontWeight: 500 }}>
                   <span style={{color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '5px'}}><Zap size={14}/> Faturamento (XML de Saída)</span>
                   <select value={documentId} onChange={e => setDocumentId(e.target.value)} required style={{ padding: '10px', borderRadius: '6px', border: '1px solid #93c5fd' }}>
-                    <option value="">Selecione um documento...</option>
-                    {documents.map(d => <option key={d.id} value={d.id}>NF-e {d.documentNumber || d.fileName} ({money(Number(d.totalAmount))})</option>)}
+                    <option value="">Selecione uma NF-e de Venda...</option>
+                    {salesDocs.map(d => <option key={d.id} value={d.id}>NF-e {d.documentNumber || d.fileName} ({money(Number(d.totalAmount))})</option>)}
                   </select>
                 </label>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <span style={{color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px', fontWeight: 500}}><ShoppingBag size={14}/> Compras Reais (XMLs de Entrada)</span>
                   <div style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#fff', padding: '5px' }}>
-                    {documents.length === 0 && <div style={{ padding: '10px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>Nenhuma nota disponível</div>}
-                    {documents.map(d => (
+                    {purchaseDocs.length === 0 && <div style={{ padding: '10px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>Nenhuma nota de Entrada identificada</div>}
+                    {purchaseDocs.map(d => (
                       <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', fontSize: '13px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}>
                         <input type="checkbox" checked={inputs.purchaseDocumentIds.includes(d.id)} onChange={e => togglePurchaseDoc(d.id, e.target.checked)} />
                         NF-e {d.documentNumber || d.fileName} ({money(Number(d.totalAmount))})
@@ -334,6 +339,13 @@ export default function SimulatorPage() {
             <article style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
               <span style={{ display: 'block', fontSize: '13px', color: '#6b7280', marginBottom: '5px' }}>{inputs.taxRegime.includes('SIMPLES') ? 'Imposto Unificado (DAS)' : 'Imposto antigo'}</span>
               <strong style={{ display: 'block', fontSize: '24px', color: '#111827' }}>{money(results.currentTax)}</strong>
+              {results.originalTaxBreakdown && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #e5e7eb', fontSize: '11px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{display: 'flex', justifyContent: 'space-between'}}><span>ICMS:</span> <span>{money(results.originalTaxBreakdown.icms)}</span></div>
+                  <div style={{display: 'flex', justifyContent: 'space-between'}}><span>PIS:</span> <span>{money(results.originalTaxBreakdown.pis)}</span></div>
+                  <div style={{display: 'flex', justifyContent: 'space-between'}}><span>COFINS:</span> <span>{money(results.originalTaxBreakdown.cofins)}</span></div>
+                </div>
+              )}
             </article>
             
             <article style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
