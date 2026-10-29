@@ -58,16 +58,14 @@ export class FiscalDocumentsService {
     const protocolInfo = asObject(protocol.infProt);
     const accessKey = text(protocolInfo.chNFe) || keyFromId;
     
-    // CORREÇÃO 1: Identificação de Entrada (0) vs Saída (1) baseada no padrão SEFAZ
+    // Identificação rigorosa de Entrada (0) vs Saída (1) baseada no padrão SEFAZ (tpNF)
     const operationType = text(ide.tpNF) === '0' ? 'ENTRADA' : 'SAIDA';
     
     const itemsRaw = inf.det === undefined ? [] : Array.isArray(inf.det) ? inf.det : [inf.det];
     
-    // CORREÇÃO 2: Extração profunda dos impostos (Regime Normal e Simples Nacional)
     const items = itemsRaw.map((row: any) => {
       const detail = asObject(row), prod = asObject(detail.prod), taxes = asObject(detail.imposto);
       
-      // Navegar dinamicamente pelas tags filhas (ICMS00, ICMSSN101, PISAliq, etc)
       const icmsNode = asObject(taxes.ICMS);
       const icmsKey = Object.keys(icmsNode)[0]; 
       const icmsDetail = asObject(icmsNode[icmsKey]);
@@ -91,7 +89,7 @@ export class FiscalDocumentsService {
         unitPrice: money(prod.vUnCom), 
         total: money(prod.vProd),
         
-        // Novos campos gravados na Base de Dados
+        // Gravado diretamente no item para validação instantânea
         operationType,
         cst_csosn: text(icmsDetail.CST) || text(icmsDetail.CSOSN) || null,
         vICMS: money(icmsDetail.vICMS) || money(icmsDetail.vCredICMSSN) || "0.00",
@@ -125,10 +123,7 @@ export class FiscalDocumentsService {
       issuedAt: issuedAt && !Number.isNaN(issuedAt.getTime()) ? issuedAt : null,
       totalAmount: total.vNF !== undefined && Number.isFinite(Number(total.vNF)) ? Number(total.vNF).toFixed(2) : null,
       status: warnings.length ? 'REVIEW' : 'PROCESSED', warnings, 
-      
-      // Os itens agora carregam toda a carga tributária original e a direção da nota
       items, 
-      
       rawXml: xml,
     }, select: { id: true, organizationId: true, fileName: true, accessKey: true, documentNumber: true, series: true, documentType: true, issuerName: true, issuerTaxId: true, recipientName: true, recipientTaxId: true, issuedAt: true, totalAmount: true, status: true, warnings: true, items: true, createdAt: true } });
   }

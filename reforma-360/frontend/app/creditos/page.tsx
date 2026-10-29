@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Wallet, Receipt, Search, FileCheck, AlertCircle, TrendingUp, ArrowDownToLine } from 'lucide-react';
+import { ArrowLeft, Wallet, Receipt, Search, FileCheck, AlertCircle, TrendingUp } from 'lucide-react';
 
 type Organization = { id: string; name: string };
 type FiscalDocument = { id: string; fileName: string; documentNumber: string | null; documentType: string; status: string; totalAmount: string | number | null; createdAt: string; items: any[] };
@@ -35,9 +35,17 @@ export default function CreditosTributariosPage() {
       const active = orgs.find(o => o.id === (preferred || organizationId))?.id || orgs[0]?.id || '';
       setOrganizationId(active);
       if (active) {
-        // Num cenário real, poderíamos filtrar apenas por documentType === 'PURCHASE' ou notas de fornecedores
         const docs = await request<FiscalDocument[]>(`/fiscal-documents?organizationId=${encodeURIComponent(active)}`);
-        setDocuments(docs.filter(d => d.documentType !== 'TEXT' && d.status !== 'FAILED'));
+        
+        // FILTRAGEM RIGOROSA: Mantém apenas documentos que sejam estritamente de ENTRADA (Compras)
+        const purchaseDocs = docs.filter(d => {
+          if (d.documentType === 'TEXT' || d.status === 'FAILED') return false;
+          const firstItem = d.items?.[0] as any;
+          // Se o item tiver a propriedade operationType, valida se é ENTRADA. Caso contrário, por segurança assume que não é de saída óbvia.
+          return !firstItem?.operationType || firstItem.operationType === 'ENTRADA';
+        });
+
+        setDocuments(purchaseDocs);
       }
     } catch (e) { 
       setError(e instanceof Error ? e.message : 'Erro ao carregar dados.'); 
@@ -51,11 +59,10 @@ export default function CreditosTributariosPage() {
     void load(); 
   }, [load]);
 
-  // Cálculos de Totais da Carteira
+  // Cálculos de Totais da Carteira restritos apenas a Compras Reais
   const { totalVolume, estimatedCredits, totalItems } = useMemo(() => {
     const volume = documents.reduce((acc, doc) => acc + Number(doc.totalAmount || 0), 0);
     const itemsCount = documents.reduce((acc, doc) => acc + (doc.items?.length || 0), 0);
-    // Estimativa global média de 26.5% para o dashboard de créditos, ajustável futuramente via API
     const credits = volume * 0.265; 
     return { totalVolume: volume, estimatedCredits: credits, totalItems: itemsCount };
   }, [documents]);
@@ -117,13 +124,13 @@ export default function CreditosTributariosPage() {
           <div style={{ background: '#fff', padding: '25px', borderRadius: '12px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#6b7280', fontWeight: 500 }}>Base de Compras (Volume Total)</h3>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#111827' }}>{money(totalVolume)}</div>
-            <p style={{ margin: '5px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Soma de todas as notas fiscais processadas.</p>
+            <p style={{ margin: '5px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Soma de todas as notas fiscais de entrada processadas.</p>
           </div>
 
           <div style={{ background: '#fff', padding: '25px', borderRadius: '12px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#6b7280', fontWeight: 500 }}>Auditoria de Itens</h3>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#111827' }}>{totalItems} <span style={{ fontSize: '16px', fontWeight: 'normal', color: '#6b7280' }}>produtos analisados</span></div>
-            <p style={{ margin: '5px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Em {documents.length} XMLs recebidos.</p>
+            <p style={{ margin: '5px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>Em {documents.length} XMLs de fornecedores.</p>
           </div>
         </div>
 
@@ -131,7 +138,7 @@ export default function CreditosTributariosPage() {
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
             <h2 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Receipt size={20} color="#4b5563" /> Extrato de Faturas (Entradas)
+              <Receipt size={20} color="#4b5563" /> Extrato de Faturas (Entradas de Fornecedores)
             </h2>
             
             <div style={{ position: 'relative', width: '100%', maxWidth: '300px' }}>
@@ -159,13 +166,13 @@ export default function CreditosTributariosPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#6b7280' }}>A carregar documentos...</td></tr>
+                  <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#6b7280' }}>A carregar documentos de entrada...</td></tr>
                 ) : filteredDocs.length === 0 ? (
-                  <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#6b7280' }}>Nenhuma nota fiscal encontrada. Importe um XML no painel inicial.</td></tr>
+                  <tr><td colSpan={5} style={{ padding: '30px', textAlign: 'center', color: '#6b7280' }}>Nenhuma nota de entrada (fornecedor) encontrada.</td></tr>
                 ) : (
                   filteredDocs.map((doc) => {
                     const docValue = Number(doc.totalAmount || 0);
-                    const estimatedDocCredit = docValue * 0.265; // Est. 26.5% base display
+                    const estimatedDocCredit = docValue * 0.265;
                     return (
                       <tr key={doc.id} style={{ borderBottom: '1px solid #f3f4f6', transition: 'background 0.2s' }}>
                         <td style={{ padding: '15px 20px' }}>
