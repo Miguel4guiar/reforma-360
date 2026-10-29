@@ -22,7 +22,9 @@ type Results = {
 type Simulation = { id: string; name: string; inputs: Inputs; results: Results; createdAt: string };
 
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
-const defaults: Inputs = { revenue: '100000', purchases: '45000', currentRate: '12', cbsRate: '8.8', ibsRate: '17.7', reduction: '0', creditablePurchases: '80', simulationYear: '2033', taxRegime: 'NORMAL', sector: 'GERAL', purchaseDocumentIds: [] };
+
+// AQUI: A nova taxa da CBS atualizada para 11.3
+const defaults: Inputs = { revenue: '100000', purchases: '45000', currentRate: '12', cbsRate: '11.3', ibsRate: '17.7', reduction: '0', creditablePurchases: '80', simulationYear: '2033', taxRegime: 'NORMAL', sector: 'GERAL', purchaseDocumentIds: [] };
 const money = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 const printStyles = `
@@ -79,7 +81,6 @@ function estimate(v: Inputs, doc: FiscalDocument | null, purchaseDocs: FiscalDoc
   const effectiveReformRate = (finalCbs + finalIbs) * (1 - finalReduction / 100);
   const grossReformTax = revenue * effectiveReformRate / 100;
 
-  // Prévia Local: Leitura dos impostos reais extraídos do XML
   let totalRealIcms = 0, totalRealPis = 0, totalRealCofins = 0;
   if (doc && doc.items) {
     doc.items.forEach(item => {
@@ -173,7 +174,6 @@ export default function SimulatorPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   
-  // Filtro Inteligente de Direção da Nota
   const salesDocs = useMemo(() => documents.filter(d => !d.items?.[0]?.operationType || d.items[0].operationType === 'SAIDA'), [documents]);
   const purchaseDocs = useMemo(() => documents.filter(d => !d.items?.[0]?.operationType || d.items[0].operationType === 'ENTRADA'), [documents]);
 
@@ -352,7 +352,6 @@ export default function SimulatorPage() {
 
         <div className="sim-results" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* BOTÃO DE EXPORTAR PDF */}
           <div className="pdf-hide" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-10px' }}>
             <button onClick={() => window.print()} className="btn btn-primary" style={{ padding: '8px 16px', background: '#111827', color: '#fff', borderRadius: '6px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
               <FileText size={16}/> Exportar Relatório (PDF)
@@ -365,14 +364,12 @@ export default function SimulatorPage() {
             <small style={{ color: '#cbd5e1' }}>{results.difference > 0 ? 'Aumento estimado no total de impostos' : results.difference < 0 ? 'Redução estimada no total de impostos' : 'Sem diferença no volume financeiro'}</small>
           </div>
           
-          {/* NOVO PAINEL: MEMÓRIA DE CÁLCULO E ANTES/DEPOIS */}
           <div className="sim-card" style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px' }}>
             <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Calculator size={18} color="#4b5563"/> Memória de Cálculo: O Antes e o Depois
             </h3>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '30px' }}>
-              {/* O ANTES */}
               <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                 <h4 style={{ margin: '0 0 15px 0', color: '#475569', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cenário Antigo</h4>
                 {results.originalTaxBreakdown ? (
@@ -391,15 +388,12 @@ export default function SimulatorPage() {
                 )}
               </div>
 
-              {/* O DEPOIS */}
               <div style={{ background: '#f0fdfa', padding: '20px', borderRadius: '8px', border: '1px solid #ccfbf1' }}>
                 <h4 style={{ margin: '0 0 15px 0', color: '#0f766e', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Reforma Tributária</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#115e59' }}><span>IBS (Substitui ICMS/ISS)</span> <strong>{money(results.ibsAmount)}</strong></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#115e59' }}><span>CBS (Substitui PIS/COFINS)</span> <strong>{money(results.cbsAmount)}</strong></div>
-                  
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', marginTop: '5px' }}><span>(-) Créditos de Entrada</span> <strong>- {money(results.estimatedCredits)}</strong></div>
-                  
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', paddingTop: '10px', borderTop: '2px solid #99f6e4', fontSize: '16px', fontWeight: 'bold', color: '#042f2e' }}>
                     <span>Novo Total a Pagar</span> <span>{money(results.netReformTax)}</span>
                   </div>
@@ -408,7 +402,6 @@ export default function SimulatorPage() {
             </div>
           </div>
 
-          {/* SECÇÃO DO GRÁFICO (RECHARTS) */}
           <div className="sim-card" style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
               <div style={{ background: '#f4f4f5', padding: '8px', borderRadius: '8px', color: '#52525b' }}><BarChart3 size={18}/></div>

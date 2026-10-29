@@ -26,7 +26,6 @@ const numeric = (value: unknown, field: string) => {
   return number;
 };
 
-// Linha do tempo da Reforma (EC 132/23)
 function getTransition(year: number) {
   if (year <= 2026) return { cbsMult: 0.1, ibsMult: 0.01, currentMult: 1.0 };
   if (year === 2027 || year === 2028) return { cbsMult: 1.0, ibsMult: 0.01, currentMult: 0.7 };
@@ -37,11 +36,10 @@ function getTransition(year: number) {
   return { cbsMult: 1.0, ibsMult: 1.0, currentMult: 0.0 };
 }
 
-// Retorna o percentual de redução baseado no Setor
 function getSectorReduction(sector?: string): number {
-  if (sector === 'PROFISSIONAL_LIBERAL') return 30; // Redução de 30%
-  if (sector === 'SAUDE_EDUCACAO') return 60; // Redução de 60%
-  return 0; // Regra Geral (sem redução)
+  if (sector === 'PROFISSIONAL_LIBERAL') return 30;
+  if (sector === 'SAUDE_EDUCACAO') return 60;
+  return 0;
 }
 
 @Injectable()
@@ -146,7 +144,9 @@ export class TaxSimulationsService {
     const cityDestination = nfe?.infNFe?.dest?.enderDest?.xMun || 'Não informada';
 
     const federal = await this.prisma.federalTaxRate.findUnique({ where: { year: 2026 } });
-    const baseCbs = federal ? Number(federal.cbsRate) : 8.8;
+    
+    // AQUI: A nova taxa da CBS atualizada para 11.3 (fallback caso não exista na base de dados)
+    const baseCbs = federal ? Number(federal.cbsRate) : 11.3;
 
     let stateRate = await this.prisma.stateTaxRate.findUnique({ where: { uf: ufDestination } });
     if (!stateRate) stateRate = await this.prisma.stateTaxRate.findUnique({ where: { uf: 'DEFAULT' } });
@@ -162,18 +162,16 @@ export class TaxSimulationsService {
     const finalCbs = baseCbs * trans.cbsMult;
     const finalIbs = baseIbs * trans.ibsMult;
 
-    // CÁLCULO DAS VENDAS
     const items = (doc.items as any[]) || [];
     const docRevenue = Number(doc.totalAmount || 0);
     
     let totalGrossReform = 0, totalCbs = 0, totalIbs = 0;
-    let totalRealIcms = 0, totalRealPis = 0, totalRealCofins = 0; // Acumuladores dos impostos reais
+    let totalRealIcms = 0, totalRealPis = 0, totalRealCofins = 0; 
 
     const itemsCalculated = items.map((item: any) => {
       const itemTotal = Number(item.total || 0);
       const ncm = String(item.ncm || '00000000').padStart(8, '0');
       
-      // Captura os impostos reais processados pelo upload
       const itemIcms = Number(item.vICMS || 0);
       const itemPis = Number(item.vPIS || 0);
       const itemCofins = Number(item.vCOFINS || 0);
@@ -200,7 +198,6 @@ export class TaxSimulationsService {
         ...item, ncm,
         appliedRules: { ufOrigin, ufDestination, cityDestination, isReduced: appliedReduction > 0, ruleDescription: matchedRule ? matchedRule.description : (sectorReduction > 0 ? `Redução de Setor (${sectorReduction}%)` : null) },
         cbsRateApplied: finalCbs, ibsRateApplied: finalIbs,
-        // Substituindo o cálculo cego pelo valor real do XML:
         currentTax: itemRealTax > 0 ? round(itemRealTax) : round(itemTotal * numeric(body.inputs.currentRate, 'alíquota atual') / 100),
         vICMS: itemIcms, vPIS: itemPis, vCOFINS: itemCofins,
         cbsTax: round(itemTotal * effectiveCbs / 100), ibsTax: round(itemTotal * effectiveIbs / 100), grossReformTax: grossTax,
@@ -209,7 +206,6 @@ export class TaxSimulationsService {
 
     const totalRealOriginalTax = round(totalRealIcms + totalRealPis + totalRealCofins);
 
-    // CÁLCULO DAS COMPRAS REAIS
     let exactCreditsTotal = 0;
     let realPurchasesVolume = 0;
     const hasRealPurchases = purchaseDocs.length > 0;
@@ -256,7 +252,6 @@ export class TaxSimulationsService {
       baseCredits = round((finalPurchasesVolume * creditablePurchases / 100) * averageEffectiveRate / 100);
     }
 
-    // Calcula o imposto original: usa o real (se existir) ou o manual (se o XML estiver zerado)
     const calculatedManualTax = round(docRevenue * baseCurrentRate / 100);
     const originalTax = totalRealOriginalTax > 0 ? totalRealOriginalTax : calculatedManualTax;
 
@@ -291,7 +286,6 @@ export class TaxSimulationsService {
       creditTransferredToB2B: creditTransferred,
       methodology: `Setor: ${sector}. Regime: ${regime}. Créditos: ${hasRealPurchases ? 'Exatos via XML' : 'Estimativa'}.`,
       
-      // NOVA ABA: O detalhe exato do imposto antigo para mostrarmos no visual Antes/Depois
       originalTaxBreakdown: {
         icms: round(totalRealIcms),
         pis: round(totalRealPis),
